@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import type {
   Veiculo,
   Lead,
@@ -148,7 +149,8 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
 
       lastSyncedRef.current[key] = serialized;
       void updateAppState({ [key]: value } as Partial<AppStateSnapshot>).catch(() => {
-        // Mantemos o estado local; o backend pode ser revalidado depois.
+        lastSyncedRef.current[key] = "";
+        toast.error("Falha ao salvar. Verifique sua conexao.", { id: "sync-error", duration: 4000 });
       });
     },
     [authLoading, isPlatformAdmin, remoteReady, tenant, user],
@@ -187,7 +189,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   }, [memoriaLoja, syncResource]);
 
   const addVeiculo = useCallback((v: Omit<Veiculo, "id" | "createdAt">) => {
-    const id = Date.now().toString();
+    const id = crypto.randomUUID();
     const createdAt = new Date().toISOString();
     setVeiculos((prev) => [{ ...v, id, createdAt } as Veiculo, ...prev]);
   }, []);
@@ -247,7 +249,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   }, [veiculos]);
 
   const addLead = useCallback((l: Omit<Lead, "id">) => {
-    const id = Date.now().toString();
+    const id = crypto.randomUUID();
     setLeads((prev) => [{ ...l, id } as Lead, ...prev]);
   }, []);
 
@@ -285,7 +287,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
 
   const addVenda = useCallback((veiculoId: string, vendedorId: string, valor: number) => {
     const data = new Date().toISOString().slice(0, 10);
-    const vendaId = Date.now().toString();
+    const vendaId = crypto.randomUUID();
     setVendas((prev) => [
       ...prev,
       { id: vendaId, veiculoId, vendedorId, valor, data },
@@ -306,8 +308,8 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       if (prev.some((tarefa) => tarefa.vendaId === vendaId)) return prev;
 
       const criadoEm = new Date().toISOString();
-      const defaults = DEFAULT_POST_SALE_TASKS.map((tarefa, index) => ({
-        id: `${vendaId}_${index + 1}`,
+      const defaults = DEFAULT_POST_SALE_TASKS.map((tarefa) => ({
+        id: crypto.randomUUID(),
         vendaId,
         veiculoId,
         titulo: tarefa.titulo,
@@ -321,12 +323,12 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const addConsulta = useCallback((c: Omit<ConsultaVeicular, "id">) => {
-    const id = Date.now().toString();
+    const id = crypto.randomUUID();
     setConsultas((prev) => [{ ...c, id } as ConsultaVeicular, ...prev]);
   }, []);
 
   const addTarefaPosVenda = useCallback((t: Omit<TarefaPosVenda, "id" | "criadoEm" | "status">) => {
-    const id = Date.now().toString() + "_" + Math.random().toString(36).slice(2, 8);
+    const id = crypto.randomUUID();
     const criadoEm = new Date().toISOString();
     setTarefasPosVenda((prev) => [{ ...t, id, criadoEm, status: "pendente" } as TarefaPosVenda, ...prev]);
   }, []);
@@ -340,7 +342,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const addCusto = useCallback((c: Omit<CustoReparo, "id" | "criadoEm">) => {
-    const id = Date.now().toString() + "_" + Math.random().toString(36).slice(2, 8);
+    const id = crypto.randomUUID();
     const criadoEm = new Date().toISOString();
     setCustos((prev) => [{ ...c, id, criadoEm } as CustoReparo, ...prev]);
   }, []);

@@ -36,7 +36,7 @@ describe("Login", () => {
       authenticated: true,
       user: {
         id: "1",
-        email: "admin@autocrm.local",
+        email: "admin@rozzcar.com",
         name: "Admin",
         role: "platform_admin",
       },
@@ -58,7 +58,7 @@ describe("Login", () => {
     );
 
     fireEvent.change(screen.getByLabelText("E-mail"), {
-      target: { value: "admin@autocrm.local" },
+      target: { value: "admin@rozzcar.com" },
     });
     fireEvent.change(screen.getByLabelText("Senha"), {
       target: { value: "123456" },

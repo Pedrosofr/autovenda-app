@@ -28,7 +28,7 @@ interface PagamentoPendente {
   valorCentavos: number;
 }
 
-const STORAGE_KEY = "autocrm_creditos";
+const STORAGE_KEY = "rozzcar_creditos";
 const PRECO_DESCRICAO = 20;
 const PRECO_FOTOS = 50;
 const PRECO_CONSULTA = 20;

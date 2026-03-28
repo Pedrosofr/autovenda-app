@@ -6,10 +6,10 @@ import {
   LogOut,
   Menu,
   Search,
-  Sparkles,
   Users,
   Wrench,
 } from "lucide-react";
+import type { SellerPermissions } from "@/services/auth";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { NavLink } from "@/components/NavLink";
@@ -28,13 +28,13 @@ import {
 } from "@/components/ui/sidebar";
 import { useAuth } from "@/lib/auth";
 
-const APP_NAV_ITEMS = [
+const APP_NAV_ITEMS: { title: string; url: string; icon: React.ElementType; permission?: keyof SellerPermissions }[] = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
-  { title: "CRM Leads", url: "/crm", icon: Users },
-  { title: "Estoque", url: "/estoque", icon: Car },
-  { title: "Consulta Veicular", url: "/consulta", icon: Search },
-  { title: "P\u00f3s-Venda", url: "/pos-venda", icon: HeartHandshake },
-  { title: "Custos", url: "/custos", icon: Wrench },
+  { title: "CRM Leads", url: "/crm", icon: Users, permission: "verCRM" },
+  { title: "Estoque", url: "/estoque", icon: Car, permission: "verEstoque" },
+  { title: "Consulta Veicular", url: "/consulta", icon: Search, permission: "verConsulta" },
+  { title: "P\u00f3s-Venda", url: "/pos-venda", icon: HeartHandshake, permission: "verPosVenda" },
+  { title: "Custos", url: "/custos", icon: Wrench, permission: "verCustos" },
 ];
 
 const PLATFORM_NAV_ITEMS = [{ title: "Lojas", url: "/platform", icon: Building2 }];
@@ -78,7 +78,14 @@ function SidebarNav() {
   const navigate = useNavigate();
   const { logout, isPlatformAdmin, permissions, tenant, user } = useAuth();
 
-  const navItems = isPlatformAdmin ? PLATFORM_NAV_ITEMS : APP_NAV_ITEMS;
+  const baseItems = isPlatformAdmin
+    ? PLATFORM_NAV_ITEMS
+    : APP_NAV_ITEMS.filter((item) =>
+        !item.permission || user?.role !== "seller" || permissions.sellerPermissions[item.permission],
+      );
+  const navItems = !isPlatformAdmin && permissions.canManageTeam
+    ? [...baseItems, { title: "Equipe", url: "/equipe", icon: Users, permission: undefined }]
+    : baseItems;
 
   const profileLabel = isPlatformAdmin ? "Admin da plataforma" : tenant?.name ?? user?.name ?? "Equipe";
 
@@ -86,16 +93,16 @@ function SidebarNav() {
     <Sidebar collapsible="icon" className="border-r-0">
       <SidebarContent className="pt-6">
         <div className="px-5 pb-8 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl card-gradient-blue flex items-center justify-center shrink-0 shadow-lg shadow-blue-500/30">
-            <Sparkles className="w-5 h-5 text-white" />
+          <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shrink-0 shadow-lg shadow-amber-500/30 animate-glow">
+            <Car className="w-5 h-5 text-white" />
           </div>
           {!collapsed && (
             <div>
               <span className="font-extrabold text-white text-lg tracking-tight block leading-tight">
-                AutoCRM
+                Rozz<span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-orange-400">car</span>
               </span>
-              <span className="text-[10px] font-semibold text-blue-400 uppercase tracking-[0.2em]">
-                {isPlatformAdmin ? "Platform" : "Pro 2026"}
+              <span className="text-[10px] font-semibold text-amber-400/80 uppercase tracking-[0.2em]">
+                {isPlatformAdmin ? "Platform" : "Pro"}
               </span>
             </div>
           )}
@@ -129,7 +136,7 @@ function SidebarNav() {
                       to={item.url}
                       end={item.url === "/dashboard" || item.url === "/platform"}
                       className="hover:bg-white/5 text-[hsl(225,10%,48%)] hover:text-white transition-all duration-200 rounded-xl mx-3 px-3 py-2.5"
-                      activeClassName="bg-blue-500/10 text-blue-400 font-semibold border border-blue-500/20 shadow-[0_0_20px_hsl(217,91%,60%,0.1)]"
+                      activeClassName="bg-gradient-to-r from-amber-500/10 to-orange-500/5 text-amber-400 font-semibold border border-amber-500/20 shadow-[0_0_24px_hsl(38,92%,50%,0.12)]"
                     >
                       <item.icon className="mr-3 h-[18px] w-[18px] shrink-0" />
                       {!collapsed && <span className="text-[13px]">{item.title}</span>}
@@ -170,7 +177,7 @@ function SidebarNav() {
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
   const { user, tenant, isPlatformAdmin, logout } = useAuth();
-  const title = isPlatformAdmin ? "Console da plataforma" : tenant?.name ?? "AutoCRM";
+  const title = isPlatformAdmin ? "Console da plataforma" : tenant?.name ?? "Rozzcar";
   const subtitle = isPlatformAdmin
     ? "Controle lojas, trials e acessos em um lugar."
     : user?.name

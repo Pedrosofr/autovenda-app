@@ -1,0 +1,39 @@
+# Controle de versao
+.git
+.gitignore
+
+# Dependencias locais (reinstaladas no build)
+node_modules
+
+# Build local (gerado no container)
+dist
+
+# Banco de dados local
+data/*.sqlite
+data/*.sqlite-shm
+data/*.sqlite-wal
+
+# Variaveis de ambiente reais
+.env
+.env.local
+.env.production
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editor / OS
+.vscode
+.idea
+*.swp
+.DS_Store
+Thumbs.db
+
+# Testes
+coverage
+playwright-report
+test-results
+
+# Temporarios
+*.tmp
+*.mjs.timestamp-*

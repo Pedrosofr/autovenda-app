@@ -750,7 +750,7 @@ export default function ConsultaVeicular() {
               <p className="text-sm font-medium">Salvar consulta vinculada ao estoque</p>
               <div className="flex gap-2 flex-wrap">
                 <Select value={veiculoVinculado} onValueChange={setVeiculoVinculado}>
-                  <SelectTrigger className="flex-1 min-w-[200px]">
+                  <SelectTrigger className="flex-1 min-w-0">
                     <SelectValue placeholder="Selecione um veiculo (opcional)" />
                   </SelectTrigger>
                   <SelectContent>

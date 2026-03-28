@@ -25,8 +25,8 @@ function diasEmEstoque(dataCriacao: string) {
 }
 
 export default function Dashboard() {
-  const { veiculos, vendas, vendedores, leads } = useAppStore();
-  const { user } = useAuth();
+  const { veiculos, vendas, vendedores, leads, loadingRemoteState } = useAppStore();
+  const { user, loading: authLoading } = useAuth();
   const mes = new Date().getMonth();
   const ano = new Date().getFullYear();
   const [chartMode, setChartMode] = useState<"faturamento" | "carros">("faturamento");
@@ -135,6 +135,23 @@ export default function Dashboard() {
     ? ((faturamentoMes - faturamentoAnterior) / faturamentoAnterior) * 100
     : 0;
 
+  if (authLoading || loadingRemoteState) {
+    return (
+      <div className="space-y-5 lg:space-y-6 max-w-[1480px] mx-auto animate-pulse">
+        <div className="h-10 w-48 rounded-xl bg-white/5" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="h-32 rounded-2xl bg-white/5" />
+          ))}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+          <div className="lg:col-span-4 h-[460px] rounded-2xl bg-white/5" />
+          <div className="lg:col-span-8 h-[460px] rounded-2xl bg-white/5" />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-5 lg:space-y-6 max-w-[1480px] mx-auto">
       <div className="flex flex-col xl:flex-row xl:items-end justify-between gap-4 animate-fade-up">
@@ -148,7 +165,7 @@ export default function Dashboard() {
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:flex-wrap sm:justify-end">
           <Link
             to="/creditos"
-            className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-500 px-4 text-xs font-extrabold uppercase tracking-[0.16em] text-white shadow-lg shadow-emerald-500/20 transition-all hover:bg-emerald-400 sm:w-auto"
+            className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-full border border-emerald-400/20 bg-gradient-to-r from-emerald-500 to-teal-500 px-4 text-xs font-extrabold uppercase tracking-[0.16em] text-white shadow-lg shadow-emerald-500/25 transition-all hover:shadow-emerald-500/40 hover:scale-[1.02] active:scale-[0.98] sm:w-auto"
           >
             <Wallet className="h-4 w-4" />
             {"Cr\u00e9ditos"}

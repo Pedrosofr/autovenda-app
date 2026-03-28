@@ -5,6 +5,7 @@ export interface TeamMember {
   papel: "owner" | "seller";
   ativo: number;
   meta_mensal: number | null;
+  seller_permissions: string | null;
   criado_em: string;
 }
 
@@ -42,5 +43,12 @@ export async function createSeller(payload: {
   return request<{ success: true; members: TeamMember[] }>("/api/tenant/team", {
     method: "POST",
     body: JSON.stringify(payload),
+  });
+}
+
+export async function updateMemberPermissions(memberId: number, permissions: Record<string, boolean>) {
+  return request<{ success: true }>(`/api/tenant/members/${memberId}/permissions`, {
+    method: "PATCH",
+    body: JSON.stringify(permissions),
   });
 }

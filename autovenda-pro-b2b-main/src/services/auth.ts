@@ -1,4 +1,28 @@
 export type UserRole = "platform_admin" | "owner" | "seller";
+
+export interface SellerPermissions {
+  verCRM: boolean;
+  verEstoque: boolean;
+  adicionarVeiculo: boolean;
+  editarVeiculo: boolean;
+  excluirVeiculo: boolean;
+  verConsulta: boolean;
+  verPosVenda: boolean;
+  verCustos: boolean;
+  verCreditos: boolean;
+}
+
+export const DEFAULT_SELLER_PERMISSIONS: SellerPermissions = {
+  verCRM: true,
+  verEstoque: true,
+  adicionarVeiculo: true,
+  editarVeiculo: true,
+  excluirVeiculo: true,
+  verConsulta: true,
+  verPosVenda: true,
+  verCustos: true,
+  verCreditos: true,
+};
 export type TenantStatus = "trial" | "active" | "past_due" | "blocked" | "closed";
 
 export interface AuthTenant {
@@ -25,6 +49,7 @@ export interface AuthSession {
   permissions: {
     canManagePlatform: boolean;
     canManageTeam: boolean;
+    sellerPermissions: SellerPermissions;
   };
   expiresAt: string;
 }

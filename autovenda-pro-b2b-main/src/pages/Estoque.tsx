@@ -507,7 +507,7 @@ function MarcarVendido({
         Marcar vendido
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="bg-[hsl(230,18%,11%)] border-white/10">
+        <DialogContent className="w-[calc(100vw-1rem)] sm:w-full max-w-sm bg-[hsl(230,18%,11%)] border-white/10">
           <DialogHeader>
             <DialogTitle className="text-white">Marcar como vendido</DialogTitle>
           </DialogHeader>

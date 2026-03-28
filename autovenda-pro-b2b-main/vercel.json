@@ -1,0 +1,44 @@
+{
+  "framework": "vite",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "functions": {
+    "api/**/*.ts": {
+      "runtime": "@vercel/node@3",
+      "maxDuration": 10
+    }
+  },
+  "rewrites": [
+    { "source": "/api/auth/login", "destination": "/api/auth/login" },
+    { "source": "/api/auth/logout", "destination": "/api/auth/logout" },
+    { "source": "/api/auth/session", "destination": "/api/auth/session" },
+    { "source": "/api/auth/forgot-password", "destination": "/api/auth/forgot-password" },
+    { "source": "/api/auth/reset-password", "destination": "/api/auth/reset-password" },
+    { "source": "/api/app/state", "destination": "/api/app/state" },
+    { "source": "/api/consultas/placa", "destination": "/api/consultas/placa" },
+    { "source": "/api/fipe/lookup", "destination": "/api/fipe/lookup" },
+    { "source": "/api/fipe/marcas", "destination": "/api/fipe/marcas" },
+    { "source": "/api/fipe/modelos", "destination": "/api/fipe/modelos" },
+    { "source": "/api/gemini/v1/generateContent", "destination": "/api/gemini/v1/generateContent" },
+    { "source": "/api/platform/activity", "destination": "/api/platform/activity" },
+    { "source": "/api/platform/stores", "destination": "/api/platform/stores" },
+    { "source": "/api/platform/stores/:id", "destination": "/api/platform/stores/[id]" },
+    { "source": "/api/platform/stores/:id/team", "destination": "/api/platform/stores/[id]/team" },
+    { "source": "/api/tenant/activity", "destination": "/api/tenant/activity" },
+    { "source": "/api/tenant/team", "destination": "/api/tenant/team" },
+    { "source": "/api/tenant/members/:id/permissions", "destination": "/api/tenant/members/[id]/permissions" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ],
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "X-XSS-Protection", "value": "1; mode=block" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+        { "key": "Cache-Control", "value": "no-store" }
+      ]
+    }
+  ]
+}

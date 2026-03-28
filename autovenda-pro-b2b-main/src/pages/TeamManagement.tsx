@@ -1,5 +1,5 @@
 import { startTransition, useEffect, useState } from "react";
-import { Crown, Loader2, Target, UserPlus, Users2 } from "lucide-react";
+import { Crown, Loader2, Settings2, Target, UserPlus, Users2 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -7,8 +7,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useAuth } from "@/lib/auth";
-import { createSeller, fetchTeamMembers, type TeamMember } from "@/services/team";
+import { createSeller, fetchTeamMembers, updateMemberPermissions, type TeamMember } from "@/services/team";
+import { DEFAULT_SELLER_PERMISSIONS, type SellerPermissions } from "@/services/auth";
 
 const INITIAL_FORM = {
   name: "",
@@ -18,12 +20,36 @@ const INITIAL_FORM = {
   role: "seller" as "owner" | "seller",
 };
 
+const PERMISSION_LABELS: { key: keyof SellerPermissions; label: string; description: string }[] = [
+  { key: "verCRM", label: "CRM / Leads", description: "Ver e gerenciar leads do pipeline" },
+  { key: "verEstoque", label: "Estoque", description: "Acessar a lista de veiculos" },
+  { key: "adicionarVeiculo", label: "Adicionar Veiculo", description: "Cadastrar novos veiculos no estoque" },
+  { key: "editarVeiculo", label: "Editar Veiculo", description: "Editar informacoes e fotos de veiculos" },
+  { key: "excluirVeiculo", label: "Arquivar / Excluir Veiculo", description: "Arquivar ou remover veiculos do estoque" },
+  { key: "verConsulta", label: "Consulta Veicular", description: "Consultar placas e FIPE" },
+  { key: "verPosVenda", label: "Pos-Venda", description: "Ver e gerenciar tarefas de pos-venda" },
+  { key: "verCustos", label: "Custos", description: "Acessar modulo de custos e reparos" },
+  { key: "verCreditos", label: "Creditos", description: "Ver saldo e historico de creditos" },
+];
+
+function parsePermissions(raw: string | null | undefined): SellerPermissions {
+  if (!raw) return { ...DEFAULT_SELLER_PERMISSIONS };
+  try {
+    return { ...DEFAULT_SELLER_PERMISSIONS, ...(JSON.parse(raw) as Partial<SellerPermissions>) };
+  } catch {
+    return { ...DEFAULT_SELLER_PERMISSIONS };
+  }
+}
+
 export default function TeamManagement() {
   const { tenant } = useAuth();
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState(INITIAL_FORM);
+  const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
+  const [editingPerms, setEditingPerms] = useState<SellerPermissions>(DEFAULT_SELLER_PERMISSIONS);
+  const [savingPerms, setSavingPerms] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -65,6 +91,32 @@ export default function TeamManagement() {
       toast.error(error instanceof Error ? error.message : "Nao foi possivel criar o usuario.");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const openPermissions = (member: TeamMember) => {
+    setEditingMember(member);
+    setEditingPerms(parsePermissions(member.seller_permissions));
+  };
+
+  const handleSavePermissions = async () => {
+    if (!editingMember) return;
+    setSavingPerms(true);
+    try {
+      await updateMemberPermissions(editingMember.id, editingPerms);
+      setMembers((prev) =>
+        prev.map((m) =>
+          m.id === editingMember.id
+            ? { ...m, seller_permissions: JSON.stringify(editingPerms) }
+            : m,
+        ),
+      );
+      toast.success("Permissoes atualizadas.");
+      setEditingMember(null);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Nao foi possivel salvar.");
+    } finally {
+      setSavingPerms(false);
     }
   };
 
@@ -210,7 +262,7 @@ export default function TeamManagement() {
           <CardHeader>
             <CardTitle className="text-xl">Acessos da loja</CardTitle>
             <CardDescription className="text-white/45">
-              O owner controla a equipe, e cada vendedor trabalha com o proprio login.
+              Clique em "Permissoes" para configurar o que cada vendedor pode ver e fazer.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -220,6 +272,7 @@ export default function TeamManagement() {
                 Carregando equipe...
               </div>
             ) : (
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow className="border-white/10 hover:bg-transparent">
@@ -228,6 +281,7 @@ export default function TeamManagement() {
                     <TableHead className="text-white/45">Meta</TableHead>
                     <TableHead className="text-white/45">Status</TableHead>
                     <TableHead className="text-white/45">Criado em</TableHead>
+                    <TableHead className="text-white/45"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -277,14 +331,95 @@ export default function TeamManagement() {
                       <TableCell className="text-white/65">
                         {new Date(member.criado_em).toLocaleDateString("pt-BR")}
                       </TableCell>
+                      <TableCell>
+                        {member.papel === "seller" && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="border-white/10 bg-white/5 text-white/70 hover:bg-white/10 hover:text-white gap-1.5"
+                            onClick={() => openPermissions(member)}
+                          >
+                            <Settings2 className="h-3.5 w-3.5" />
+                            Permissoes
+                          </Button>
+                        )}
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
+              </div>
             )}
           </CardContent>
         </Card>
       </div>
+
+      {/* Modal de permissoes */}
+      <Dialog open={!!editingMember} onOpenChange={(open) => { if (!open) setEditingMember(null); }}>
+        <DialogContent className="w-[calc(100vw-1rem)] sm:w-full max-w-md max-h-[92dvh] overflow-y-auto border-white/10 bg-[hsl(230,20%,10%)] text-white">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold">
+              Permissoes — {editingMember?.nome}
+            </DialogTitle>
+            <p className="text-sm text-white/45 mt-1">
+              Ative ou desative o acesso a cada modulo para este vendedor.
+            </p>
+          </DialogHeader>
+
+          <div className="space-y-2 mt-2">
+            {PERMISSION_LABELS.map(({ key, label, description }) => {
+              const enabled = editingPerms[key];
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setEditingPerms((prev) => ({ ...prev, [key]: !prev[key] }))}
+                  className={`w-full flex items-center justify-between rounded-xl border px-4 py-3 text-left transition-all ${
+                    enabled
+                      ? "border-emerald-500/25 bg-emerald-500/8 hover:bg-emerald-500/12"
+                      : "border-white/8 bg-white/[0.02] hover:bg-white/[0.04]"
+                  }`}
+                >
+                  <div className="min-w-0">
+                    <p className={`text-sm font-semibold ${enabled ? "text-white" : "text-white/45"}`}>{label}</p>
+                    <p className="text-xs text-white/30 mt-0.5">{description}</p>
+                  </div>
+                  <div
+                    className={`ml-4 shrink-0 w-10 h-6 rounded-full transition-all relative ${
+                      enabled ? "bg-emerald-500" : "bg-white/15"
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all shadow-sm ${
+                        enabled ? "left-5" : "left-1"
+                      }`}
+                    />
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="flex gap-3 mt-4">
+            <Button
+              variant="outline"
+              className="flex-1 border-white/10 bg-white/5 text-white/70 hover:bg-white/10"
+              onClick={() => setEditingMember(null)}
+              disabled={savingPerms}
+            >
+              Cancelar
+            </Button>
+            <Button
+              className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white"
+              onClick={handleSavePermissions}
+              disabled={savingPerms}
+            >
+              {savingPerms ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Salvar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

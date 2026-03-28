@@ -16,10 +16,14 @@ import {
   listTenantMembers,
   revokeSession,
   sessionToResponse,
+  createPasswordResetToken,
+  resetPasswordWithToken,
   updateStoreStatus,
   updateTenantAppState,
+  updateMemberPermissions,
   type AuthenticatedSession,
   type TenantStatus,
+  type SellerPermissions,
 } from "./database";
 
 const require = createRequire(import.meta.url);
@@ -65,6 +69,15 @@ function normalizeHeaders(headers: RequestShape["headers"]) {
   return normalized;
 }
 
+const SECURITY_HEADERS: Record<string, string> = {
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "DENY",
+  "X-XSS-Protection": "1; mode=block",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+  "Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'",
+};
+
 function json(status: number, body: unknown, headers?: Record<string, string>): ResponseShape {
   return {
     status,
@@ -72,6 +85,7 @@ function json(status: number, body: unknown, headers?: Record<string, string>): 
     headers: {
       "Content-Type": "application/json; charset=utf-8",
       "Cache-Control": "no-store",
+      ...SECURITY_HEADERS,
       ...headers,
     },
   };
@@ -144,6 +158,10 @@ async function handleLogin(request: RequestShape, headers: Record<string, string
     return json(400, { error: "Informe e-mail e senha." });
   }
 
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return json(400, { error: "E-mail invalido." });
+  }
+
   const auth = authenticateUser(email, password, {
     ip,
     userAgent: headers["user-agent"],
@@ -173,6 +191,121 @@ async function handleLogout(headers: Record<string, string>): Promise<ResponseSh
   return json(200, { success: true }, {
     "Set-Cookie": clearSessionCookieHeader(),
   });
+}
+
+async function sendResetEmail(email: string, name: string, resetUrl: string): Promise<boolean> {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    console.warn("[Email] RESEND_API_KEY nao configurada. Email de reset nao enviado para:", email);
+    return true; // retorna true para o fluxo continuar em dev
+  }
+
+  const fromEmail = process.env.EMAIL_FROM ?? "noreply@rozzcar.com";
+
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: `Rozzcar <${fromEmail}>`,
+        to: [email],
+        subject: "Recuperacao de senha - Rozzcar",
+        html: `
+          <div style="font-family: 'Segoe UI', Tahoma, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 24px; background: #0f1117; color: #e5e7eb; border-radius: 16px;">
+            <div style="text-align: center; margin-bottom: 24px;">
+              <div style="display: inline-block; background: linear-gradient(135deg, #f59e0b, #ea580c); border-radius: 12px; padding: 12px; margin-bottom: 12px;">
+                <span style="font-size: 24px; color: white;">R</span>
+              </div>
+              <h1 style="margin: 0; font-size: 22px; color: white;">Rozzcar</h1>
+            </div>
+            <p style="color: #d1d5db;">Ola, <strong>${name}</strong>.</p>
+            <p style="color: #9ca3af;">Recebemos uma solicitacao para redefinir sua senha. Clique no botao abaixo para criar uma nova senha:</p>
+            <div style="text-align: center; margin: 28px 0;">
+              <a href="${resetUrl}" style="display: inline-block; background: linear-gradient(135deg, #f59e0b, #ea580c); color: white; text-decoration: none; padding: 14px 32px; border-radius: 10px; font-weight: bold; font-size: 14px;">Redefinir minha senha</a>
+            </div>
+            <p style="color: #6b7280; font-size: 12px;">Este link expira em 30 minutos. Se voce nao solicitou a troca, ignore este email.</p>
+            <hr style="border: none; border-top: 1px solid #1f2937; margin: 24px 0;" />
+            <p style="color: #4b5563; font-size: 11px; text-align: center;">Rozzcar - Gestao automotiva inteligente</p>
+          </div>
+        `,
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.text().catch(() => "");
+      console.error("[Email] Falha ao enviar:", res.status, err);
+      return false;
+    }
+
+    return true;
+  } catch (err) {
+    console.error("[Email] Erro ao enviar:", err);
+    return false;
+  }
+}
+
+async function handleForgotPassword(request: RequestShape): Promise<ResponseShape> {
+  if (request.method !== "POST") {
+    return json(405, { error: "Metodo nao permitido." }, { Allow: "POST" });
+  }
+
+  const ip = request.ip ?? "unknown";
+  const retryAfter = enforceRateLimit(`forgot:${ip}`, 5, 60_000);
+  if (retryAfter) {
+    return json(429, { error: "Muitas tentativas. Tente novamente em instantes." }, { "Retry-After": String(retryAfter) });
+  }
+
+  const body = (request.body ?? {}) as Record<string, unknown>;
+  const email = String(body.email ?? "").trim().toLowerCase();
+
+  if (!email) {
+    return json(400, { error: "Informe o e-mail." });
+  }
+
+  // Sempre retorna sucesso para nao revelar se o email existe
+  const result = createPasswordResetToken(email);
+
+  if (result) {
+    const baseUrl = process.env.APP_BASE_URL ?? "http://localhost:8080";
+    const resetUrl = `${baseUrl}/?reset=${result.token}`;
+    await sendResetEmail(email, result.userName, resetUrl);
+  }
+
+  return json(200, { message: "Se o e-mail estiver cadastrado, voce recebera um link de recuperacao." });
+}
+
+async function handleResetPassword(request: RequestShape): Promise<ResponseShape> {
+  if (request.method !== "POST") {
+    return json(405, { error: "Metodo nao permitido." }, { Allow: "POST" });
+  }
+
+  const ip = request.ip ?? "unknown";
+  const retryAfter = enforceRateLimit(`reset:${ip}`, 5, 60_000);
+  if (retryAfter) {
+    return json(429, { error: "Muitas tentativas. Tente novamente em instantes." }, { "Retry-After": String(retryAfter) });
+  }
+
+  const body = (request.body ?? {}) as Record<string, unknown>;
+  const token = String(body.token ?? "");
+  const newPassword = String(body.password ?? "");
+
+  if (!token || !newPassword) {
+    return json(400, { error: "Token e nova senha sao obrigatorios." });
+  }
+
+  if (newPassword.length < 6) {
+    return json(400, { error: "A senha deve ter no minimo 6 caracteres." });
+  }
+
+  const success = resetPasswordWithToken(token, newPassword);
+  if (!success) {
+    return json(400, { error: "Link expirado ou invalido. Solicite um novo." });
+  }
+
+  return json(200, { message: "Senha redefinida com sucesso. Faca login com a nova senha." });
 }
 
 async function handlePlatformStores(request: RequestShape, headers: Record<string, string>): Promise<ResponseShape> {
@@ -359,6 +492,30 @@ async function handlePlatformActivity(request: RequestShape, headers: Record<str
   return json(200, { events: listPlatformAuditEvents(20) });
 }
 
+async function handleMemberPermissions(request: RequestShape, headers: Record<string, string>): Promise<ResponseShape> {
+  const sessionResult = requireSession(headers);
+  if ("error" in sessionResult) return sessionResult.error;
+
+  if (request.method !== "PATCH") {
+    return json(405, { error: "Metodo nao permitido." }, { Allow: "PATCH" });
+  }
+
+  const match = request.path.match(/^\/api\/tenant\/members\/(\d+)\/permissions$/);
+  const memberId = Number(match?.[1] ?? 0);
+  if (!memberId) {
+    return json(400, { error: "Membro invalido." });
+  }
+
+  const body = (request.body ?? {}) as Partial<SellerPermissions>;
+
+  try {
+    updateMemberPermissions(sessionResult.session, memberId, body);
+    return json(200, { success: true });
+  } catch (error) {
+    return json(400, { error: error instanceof Error ? error.message : "Nao foi possivel atualizar permissoes." });
+  }
+}
+
 async function handleTenantActivity(request: RequestShape, headers: Record<string, string>): Promise<ResponseShape> {
   const result = requireSession(headers);
   if ("error" in result) return result.error;
@@ -427,15 +584,27 @@ async function handleGemini(request: RequestShape, headers: Record<string, strin
     return json(503, { error: "GOOGLE_API_KEY nao configurada." });
   }
 
-  const upstream = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+  const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+  const bodyStr = JSON.stringify(request.body ?? {});
+
+  let upstream = await fetch(GEMINI_URL, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(request.body ?? {}),
+    headers: { "Content-Type": "application/json" },
+    body: bodyStr,
   });
 
+  // Retry uma vez apos 5s se der rate limit (429)
+  if (upstream.status === 429) {
+    await new Promise((r) => setTimeout(r, 5000));
+    upstream = await fetch(GEMINI_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: bodyStr,
+    });
+  }
+
   const text = await upstream.text();
+  console.log(`[Gemini] status=${upstream.status} body=${text.slice(0, 300)}`);
   let parsedBody: unknown = text;
 
   try {
@@ -642,8 +811,44 @@ async function handleFipeModelSuggestions(request: RequestShape, headers: Record
   }
 }
 
+function checkCsrf(method: string, headers: Record<string, string>): ResponseShape | null {
+  if (method === "GET" || method === "HEAD" || method === "OPTIONS") return null;
+
+  const origin = headers["origin"];
+  const referer = headers["referer"];
+  const baseUrl = process.env.APP_BASE_URL ?? "http://localhost:8080";
+  const allowedHost = new URL(baseUrl).host;
+  const isDev = process.env.NODE_ENV !== "production";
+
+  function isAllowed(url: string): boolean {
+    try {
+      const { hostname, host } = new URL(url);
+      // Em desenvolvimento, aceita qualquer porta do localhost
+      if (isDev && (hostname === "localhost" || hostname === "127.0.0.1")) return true;
+      return host === allowedHost;
+    } catch {
+      return false;
+    }
+  }
+
+  if (origin) {
+    if (!isAllowed(origin)) return json(403, { error: "Requisicao de origem nao permitida." });
+    return null;
+  }
+
+  if (referer) {
+    if (!isAllowed(referer)) return json(403, { error: "Requisicao de origem nao permitida." });
+    return null;
+  }
+
+  return null;
+}
+
 export async function handleBackendRequest(request: RequestShape): Promise<ResponseShape> {
   const headers = normalizeHeaders(request.headers);
+
+  const csrfBlock = checkCsrf(request.method, headers);
+  if (csrfBlock) return csrfBlock;
 
   try {
     if (request.path === "/api/auth/login") {
@@ -656,6 +861,14 @@ export async function handleBackendRequest(request: RequestShape): Promise<Respo
 
     if (request.path === "/api/auth/logout") {
       return await handleLogout(headers);
+    }
+
+    if (request.path === "/api/auth/forgot-password") {
+      return await handleForgotPassword(request);
+    }
+
+    if (request.path === "/api/auth/reset-password") {
+      return await handleResetPassword(request);
     }
 
     if (request.path === "/api/platform/stores") {
@@ -676,6 +889,10 @@ export async function handleBackendRequest(request: RequestShape): Promise<Respo
 
     if (request.path === "/api/tenant/team") {
       return await handleTenantTeam(request, headers);
+    }
+
+    if (/^\/api\/tenant\/members\/\d+\/permissions$/.test(request.path)) {
+      return await handleMemberPermissions(request, headers);
     }
 
     if (request.path === "/api/tenant/activity") {
@@ -708,6 +925,31 @@ export async function handleBackendRequest(request: RequestShape): Promise<Respo
 
     if (request.path.startsWith("/api/fipe/modelos")) {
       return await handleFipeModelSuggestions(request, headers);
+    }
+
+    // ── Health check (Railway / monitoring) ─────────────────────────────
+    if (request.path === "/api/health") {
+      return json(200, {
+        status: "ok",
+        version: process.env.npm_package_version ?? "1.0.0",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // ── API v1 — rotas reservadas para integracoes externas futuras ──────
+    // Autenticacao via Bearer token sera adicionada aqui
+    // Exemplo de uso: integrar com site, app mobile, ou ERPs de clientes
+    //
+    // GET  /api/v1/stores              → listar lojas (platform_admin)
+    // GET  /api/v1/stores/:id/veiculos → estoque publico de uma loja
+    // POST /api/v1/stores/:id/leads    → receber lead externo (site/landing page)
+    // GET  /api/v1/stores/:id/stats    → KPIs publicos (para dashboard externo)
+    //
+    if (request.path.startsWith("/api/v1/")) {
+      return json(501, {
+        error: "API v1 em desenvolvimento. Disponivel em breve.",
+        docs: "https://docs.autovenda.pro/api",
+      });
     }
 
     return json(404, { error: "Rota nao encontrada." });

@@ -26,7 +26,7 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 const RouteFallback = () => (
   <div className="min-h-screen bg-[hsl(230,20%,7%)] text-white flex items-center justify-center px-6">
     <div className="text-center">
-      <div className="text-sm uppercase tracking-[0.3em] text-blue-400/80">AutoCRM</div>
+      <div className="text-sm uppercase tracking-[0.3em] text-amber-400/80">Rozzcar</div>
       <div className="mt-3 text-lg font-semibold">Carregando modulo...</div>
     </div>
   </div>
@@ -46,12 +46,12 @@ const App = () => (
                 <Route path="/" element={<Login />} />
                 <Route path="/platform" element={<ProtectedRoute allowRoles={["platform_admin"]}><AppLayout><PlatformConsole /></AppLayout></ProtectedRoute>} />
                 <Route path="/dashboard" element={<ProtectedRoute allowRoles={["owner", "seller"]}><AppLayout><Dashboard /></AppLayout></ProtectedRoute>} />
-                <Route path="/crm" element={<ProtectedRoute allowRoles={["owner", "seller"]}><AppLayout><CRMKanban /></AppLayout></ProtectedRoute>} />
-                <Route path="/estoque" element={<ProtectedRoute allowRoles={["owner", "seller"]}><AppLayout><Estoque /></AppLayout></ProtectedRoute>} />
-                <Route path="/consulta" element={<ProtectedRoute allowRoles={["owner", "seller"]}><AppLayout><ConsultaVeicular /></AppLayout></ProtectedRoute>} />
-                <Route path="/pos-venda" element={<ProtectedRoute allowRoles={["owner", "seller"]}><AppLayout><PosVenda /></AppLayout></ProtectedRoute>} />
-                <Route path="/custos" element={<ProtectedRoute allowRoles={["owner", "seller"]}><AppLayout><Custos /></AppLayout></ProtectedRoute>} />
-                <Route path="/creditos" element={<ProtectedRoute allowRoles={["owner", "seller"]}><AppLayout><Creditos /></AppLayout></ProtectedRoute>} />
+                <Route path="/crm" element={<ProtectedRoute allowRoles={["owner", "seller"]} requiredPermission="verCRM"><AppLayout><CRMKanban /></AppLayout></ProtectedRoute>} />
+                <Route path="/estoque" element={<ProtectedRoute allowRoles={["owner", "seller"]} requiredPermission="verEstoque"><AppLayout><Estoque /></AppLayout></ProtectedRoute>} />
+                <Route path="/consulta" element={<ProtectedRoute allowRoles={["owner", "seller"]} requiredPermission="verConsulta"><AppLayout><ConsultaVeicular /></AppLayout></ProtectedRoute>} />
+                <Route path="/pos-venda" element={<ProtectedRoute allowRoles={["owner", "seller"]} requiredPermission="verPosVenda"><AppLayout><PosVenda /></AppLayout></ProtectedRoute>} />
+                <Route path="/custos" element={<ProtectedRoute allowRoles={["owner", "seller"]} requiredPermission="verCustos"><AppLayout><Custos /></AppLayout></ProtectedRoute>} />
+                <Route path="/creditos" element={<ProtectedRoute allowRoles={["owner", "seller"]} requiredPermission="verCreditos"><AppLayout><Creditos /></AppLayout></ProtectedRoute>} />
                 <Route path="/equipe" element={<ProtectedRoute allowRoles={["owner"]}><AppLayout><TeamManagement /></AppLayout></ProtectedRoute>} />
                 <Route path="*" element={<NotFound />} />
               </Routes>

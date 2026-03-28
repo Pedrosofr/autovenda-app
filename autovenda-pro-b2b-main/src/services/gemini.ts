@@ -233,13 +233,15 @@ export const generateVehicleDescriptions = generateVehicleDescriptionsWithGemini
 async function postGeminiRequest(body: any) {
   const res = await fetch(API_URL, {
     method: "POST",
+    credentials: "same-origin",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
 
   if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Gemini API Error: ${res.status} - ${err}`);
+    const err = await res.text().catch(() => "");
+    console.error(`[Gemini] ${res.status}: ${err}`);
+    throw new Error("Falha ao gerar conteudo com IA. Tente novamente.");
   }
 
   return res.json();
@@ -274,5 +276,9 @@ export async function estimarCustosVeiculo(params: any) {
   });
 
   const text = json.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
-  return JSON.parse(text);
+  const parsed = JSON.parse(text);
+  if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.reparos)) {
+    throw new Error("Resposta da IA em formato inesperado.");
+  }
+  return parsed;
 }

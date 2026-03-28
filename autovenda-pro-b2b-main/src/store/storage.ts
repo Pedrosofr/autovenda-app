@@ -2,15 +2,15 @@ import type { Veiculo, Lead, Vendedor, Venda, ConsultaVeicular, TarefaPosVenda, 
 import { defaultConfigPrecos, defaultMemoriaLoja } from "./types";
 
 const KEYS = {
-  veiculos: "autocrm_veiculos",
-  leads: "autocrm_leads",
-  vendedores: "autocrm_vendedores",
-  vendas: "autocrm_vendas",
-  consultas: "autocrm_consultas",
-  tarefasPosVenda: "autocrm_tarefas_pos_venda",
-  custos: "autocrm_custos",
-  configPrecos: "autocrm_config_precos",
-  memoriaLoja: "autocrm_memoria_loja",
+  veiculos: "rozzcar_veiculos",
+  leads: "rozzcar_leads",
+  vendedores: "rozzcar_vendedores",
+  vendas: "rozzcar_vendas",
+  consultas: "rozzcar_consultas",
+  tarefasPosVenda: "rozzcar_tarefas_pos_venda",
+  custos: "rozzcar_custos",
+  configPrecos: "rozzcar_config_precos",
+  memoriaLoja: "rozzcar_memoria_loja",
 } as const;
 
 const WRITE_DELAY_MS = 180;

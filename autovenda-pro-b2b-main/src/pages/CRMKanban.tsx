@@ -440,7 +440,7 @@ export default function CRMKanban() {
         ))}
       </div>
 
-      <div className="rounded-xl border bg-card overflow-hidden hidden md:block">
+      <div className="rounded-xl border bg-card overflow-hidden hidden md:block overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>

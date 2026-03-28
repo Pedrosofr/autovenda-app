@@ -547,6 +547,7 @@ export default function PlatformConsole() {
                 Carregando lojas...
               </div>
             ) : (
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow className="border-white/10 hover:bg-transparent">
@@ -637,13 +638,14 @@ export default function PlatformConsole() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             )}
           </CardContent>
         </Card>
       </div>
 
       <Dialog open={manageOpen} onOpenChange={setManageOpen}>
-        <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto border-white/10 bg-[hsl(230,20%,9%)] text-white">
+        <DialogContent className="w-[calc(100vw-1rem)] sm:w-[calc(100vw-2rem)] max-w-5xl max-h-[90dvh] overflow-y-auto border-white/10 bg-[hsl(230,20%,9%)] text-white">
           <DialogHeader>
             <DialogTitle>Gerenciar loja</DialogTitle>
             <DialogDescription className="text-white/45">

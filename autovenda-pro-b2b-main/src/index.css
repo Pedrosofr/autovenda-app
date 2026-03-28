@@ -14,16 +14,16 @@
     --popover: 230 18% 11%;
     --popover-foreground: 0 0% 95%;
 
-    --primary: 220 80% 32%;
+    --primary: 217 91% 60%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 280 70% 55%;
+    --secondary: 262 83% 58%;
     --secondary-foreground: 0 0% 100%;
 
     --muted: 230 14% 15%;
     --muted-foreground: 225 10% 48%;
 
-    --accent: 172 66% 50%;
+    --accent: 172 70% 46%;
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 84% 60%;
@@ -37,18 +37,18 @@
 
     --border: 230 14% 16%;
     --input: 230 14% 16%;
-    --ring: 220 80% 32%;
+    --ring: 217 91% 60%;
 
     --radius: 0.875rem;
 
     --sidebar-background: 230 22% 5%;
     --sidebar-foreground: 225 10% 50%;
-    --sidebar-primary: 220 80% 32%;
+    --sidebar-primary: 217 91% 60%;
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 230 18% 13%;
     --sidebar-accent-foreground: 0 0% 95%;
     --sidebar-border: 230 14% 12%;
-    --sidebar-ring: 220 80% 32%;
+    --sidebar-ring: 217 91% 60%;
     --sidebar-muted: 230 14% 18%;
   }
 }
@@ -60,6 +60,7 @@
   body {
     @apply bg-background text-foreground antialiased;
     font-family: 'Sora', system-ui, sans-serif;
+    overflow-x: hidden;
   }
   h1, h2, h3, h4 {
     @apply tracking-tight;
@@ -71,8 +72,8 @@
 
   ::-webkit-scrollbar { width: 5px; height: 5px; }
   ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: hsl(230 14% 20%); border-radius: 99px; }
-  ::-webkit-scrollbar-thumb:hover { background: hsl(220 80% 32% / 0.4); }
+  ::-webkit-scrollbar-thumb { background: hsl(230 14% 22%); border-radius: 99px; }
+  ::-webkit-scrollbar-thumb:hover { background: hsl(217 91% 60% / 0.35); }
 }
 
 @layer utilities {
@@ -124,6 +125,10 @@
   .stagger-3 { animation-delay: 0.18s; }
   .stagger-4 { animation-delay: 0.24s; }
   .stagger-5 { animation-delay: 0.30s; }
+
+  .animate-glow {
+    animation: glow 3s ease-in-out infinite alternate;
+  }
 }
 
 @keyframes fadeUp {
@@ -137,4 +142,8 @@
 @keyframes slideInLeft {
   from { opacity: 0; transform: translateX(-24px); }
   to { opacity: 1; transform: translateX(0); }
+}
+@keyframes glow {
+  from { box-shadow: 0 0 20px -5px hsl(38 92% 50% / 0.2); }
+  to { box-shadow: 0 0 30px -5px hsl(38 92% 50% / 0.4); }
 }

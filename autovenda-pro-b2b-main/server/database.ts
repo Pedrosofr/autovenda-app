@@ -4,13 +4,47 @@ import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { createEmptyAppState, type AppStateResourcePatch, type AppStateSnapshot } from "../src/lib/app-state";
 
-const SESSION_COOKIE_NAME = "autocrm_session";
+const SESSION_COOKIE_NAME = "rozzcar_session";
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7;
 const PBKDF2_ITERATIONS = 120_000;
 const APP_STATE_DEFAULTS = createEmptyAppState();
 
 export type PlatformRole = "platform_admin" | "owner" | "seller";
 export type TenantStatus = "trial" | "active" | "past_due" | "blocked" | "closed";
+
+export interface SellerPermissions {
+  verCRM: boolean;
+  verEstoque: boolean;
+  adicionarVeiculo: boolean;
+  editarVeiculo: boolean;
+  excluirVeiculo: boolean;
+  verConsulta: boolean;
+  verPosVenda: boolean;
+  verCustos: boolean;
+  verCreditos: boolean;
+}
+
+export const DEFAULT_SELLER_PERMISSIONS: SellerPermissions = {
+  verCRM: true,
+  verEstoque: true,
+  adicionarVeiculo: true,
+  editarVeiculo: true,
+  excluirVeiculo: true,
+  verConsulta: true,
+  verPosVenda: true,
+  verCustos: true,
+  verCreditos: true,
+};
+
+function parseSellerPermissions(raw: string | null | undefined): SellerPermissions {
+  if (!raw) return { ...DEFAULT_SELLER_PERMISSIONS };
+  try {
+    const parsed = JSON.parse(raw) as Partial<SellerPermissions>;
+    return { ...DEFAULT_SELLER_PERMISSIONS, ...parsed };
+  } catch {
+    return { ...DEFAULT_SELLER_PERMISSIONS };
+  }
+}
 
 export interface AuthenticatedSession {
   sessionId: number;
@@ -26,6 +60,7 @@ export interface AuthenticatedSession {
   trialEndsAt: string | null;
   planCode: string | null;
   salesGoalMonthly: number | null;
+  sellerPermissions: SellerPermissions;
   expiresAt: string;
 }
 
@@ -36,6 +71,7 @@ type MemberRow = {
   papel: "owner" | "seller";
   ativo: number;
   meta_mensal: number | null;
+  seller_permissions: string | null;
   criado_em: string;
 };
 
@@ -43,7 +79,9 @@ let dbInstance: DatabaseSync | null = null;
 let initializedPath: string | null = null;
 
 function getDatabasePath() {
-  return process.env.DATABASE_PATH ?? join(process.cwd(), "data", "autocrm.sqlite");
+  if (process.env.DATABASE_PATH) return process.env.DATABASE_PATH;
+  if (process.env.VERCEL) return "/tmp/rozzcar.sqlite";
+  return join(process.cwd(), "data", "rozzcar.sqlite");
 }
 
 function getEnv(name: string) {
@@ -209,11 +247,23 @@ function createSchema(db: DatabaseSync) {
       created_at text not null default current_timestamp
     );
 
+    create table if not exists password_reset_tokens (
+      id integer primary key autoincrement,
+      user_id integer not null references users(id) on delete cascade,
+      token_hash text not null unique,
+      expires_at text not null,
+      used_at text,
+      created_at text not null default current_timestamp
+    );
+
     create index if not exists idx_memberships_tenant on memberships (tenant_id);
     create index if not exists idx_memberships_user on memberships (user_id);
     create index if not exists idx_sessions_user on sessions (user_id);
     create index if not exists idx_sessions_membership on sessions (membership_id);
     create index if not exists idx_tenants_status on tenants (status);
+    create index if not exists idx_reset_tokens_user on password_reset_tokens (user_id);
+    create index if not exists idx_users_email on users (email);
+    create index if not exists idx_audit_log_tenant on audit_log (tenant_id);
   `);
 }
 
@@ -225,6 +275,9 @@ function hasColumn(db: DatabaseSync, table: string, column: string) {
 function runMigrations(db: DatabaseSync) {
   if (!hasColumn(db, "tenants", "max_users")) {
     db.exec("alter table tenants add column max_users integer not null default 10;");
+  }
+  if (!hasColumn(db, "memberships", "seller_permissions")) {
+    db.exec("alter table memberships add column seller_permissions text;");
   }
 }
 
@@ -282,6 +335,16 @@ export function getDatabase() {
 
   mkdirSync(dirname(path), { recursive: true });
   const db = new DatabaseSync(path);
+
+  // WAL mode: permite leituras simultâneas durante escritas (essencial para múltiplos usuários)
+  db.exec("PRAGMA journal_mode=WAL;");
+  // Espera até 8 segundos se o banco estiver ocupado em vez de falhar imediatamente
+  db.exec("PRAGMA busy_timeout=8000;");
+  // Mais rápido com WAL, ainda seguro contra corrupção
+  db.exec("PRAGMA synchronous=NORMAL;");
+  // Cache de 8MB em memória para leituras mais rápidas
+  db.exec("PRAGMA cache_size=-8000;");
+
   createSchema(db);
   runMigrations(db);
   ensurePlatformAdmin(db);
@@ -293,11 +356,12 @@ export function getDatabase() {
 
 function serializeCookie(name: string, value: string, maxAgeSeconds: number) {
   const isProd = process.env.NODE_ENV === "production";
-  return `${name}=${value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAgeSeconds}; ${isProd ? "Secure; " : ""}`.trim();
+  const secure = isProd ? "Secure; " : "";
+  return `${name}=${value}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${maxAgeSeconds}; ${secure}`.trim();
 }
 
 export function clearSessionCookieHeader() {
-  return `${SESSION_COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
+  return `${SESSION_COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0`;
 }
 
 export function createTenantWithOwner(input: {
@@ -545,6 +609,7 @@ function getMembershipForUser(db: DatabaseSync, userId: number) {
       m.tenant_id,
       m.role,
       m.sales_goal_monthly,
+      m.seller_permissions,
       t.name as tenant_name,
       t.slug as tenant_slug,
       t.status as tenant_status,
@@ -560,6 +625,7 @@ function getMembershipForUser(db: DatabaseSync, userId: number) {
     tenant_id: number;
     role: "owner" | "seller";
     sales_goal_monthly: number | null;
+    seller_permissions: string | null;
     tenant_name: string;
     tenant_slug: string;
     tenant_status: TenantStatus;
@@ -652,6 +718,7 @@ function buildSessionPayload(input: {
         tenant_id: number;
         role: "owner" | "seller";
         sales_goal_monthly: number | null;
+        seller_permissions: string | null;
         tenant_name: string;
         tenant_slug: string;
         tenant_status: TenantStatus;
@@ -661,13 +728,14 @@ function buildSessionPayload(input: {
     | undefined;
   expiresAt: string;
 }): AuthenticatedSession {
+  const role = input.user.platform_role === "platform_admin" ? "platform_admin" : (input.membership?.role ?? "seller");
   return {
     sessionId: input.sessionId,
     userId: input.user.id,
     membershipId: input.membership?.membership_id ?? null,
     email: input.user.email,
     name: input.user.name,
-    role: input.user.platform_role === "platform_admin" ? "platform_admin" : (input.membership?.role ?? "seller"),
+    role,
     tenantId: input.membership?.tenant_id ?? null,
     tenantName: input.membership?.tenant_name ?? null,
     tenantSlug: input.membership?.tenant_slug ?? null,
@@ -675,6 +743,9 @@ function buildSessionPayload(input: {
     trialEndsAt: input.membership?.trial_ends_at ?? null,
     planCode: input.membership?.plan_code ?? null,
     salesGoalMonthly: input.membership?.sales_goal_monthly ?? null,
+    sellerPermissions: role === "seller"
+      ? parseSellerPermissions(input.membership?.seller_permissions)
+      : { ...DEFAULT_SELLER_PERMISSIONS },
     expiresAt: input.expiresAt,
   };
 }
@@ -701,6 +772,7 @@ export function getSessionFromCookie(cookieHeader: string | undefined) {
       m.id as membership_id,
       m.role as membership_role,
       m.sales_goal_monthly,
+      m.seller_permissions,
       t.id as tenant_id,
       t.name as tenant_name,
       t.slug as tenant_slug,
@@ -723,6 +795,7 @@ export function getSessionFromCookie(cookieHeader: string | undefined) {
     membership_id: number | null;
     membership_role: "owner" | "seller" | null;
     sales_goal_monthly: number | null;
+    seller_permissions: string | null;
     tenant_id: number | null;
     tenant_name: string | null;
     tenant_slug: string | null;
@@ -741,13 +814,14 @@ export function getSessionFromCookie(cookieHeader: string | undefined) {
   }
 
   if (row.tenant_status === "blocked" || row.tenant_status === "closed") {
+    const blockedRole = row.platform_role === "platform_admin" ? "platform_admin" : ((row.membership_role ?? "seller") as PlatformRole);
     return {
       sessionId: row.session_id,
       userId: row.user_id,
       membershipId: row.membership_id,
       email: row.email,
       name: row.name,
-      role: row.platform_role === "platform_admin" ? "platform_admin" : ((row.membership_role ?? "seller") as PlatformRole),
+      role: blockedRole,
       tenantId: row.tenant_id,
       tenantName: row.tenant_name,
       tenantSlug: row.tenant_slug,
@@ -755,17 +829,21 @@ export function getSessionFromCookie(cookieHeader: string | undefined) {
       trialEndsAt: row.trial_ends_at,
       planCode: row.plan_code,
       salesGoalMonthly: row.sales_goal_monthly,
+      sellerPermissions: blockedRole === "seller"
+        ? parseSellerPermissions(row.seller_permissions)
+        : { ...DEFAULT_SELLER_PERMISSIONS },
       expiresAt: row.expires_at,
     };
   }
 
+  const activeRole = row.platform_role === "platform_admin" ? "platform_admin" : ((row.membership_role ?? "seller") as PlatformRole);
   return {
     sessionId: row.session_id,
     userId: row.user_id,
     membershipId: row.membership_id,
     email: row.email,
     name: row.name,
-    role: row.platform_role === "platform_admin" ? "platform_admin" : ((row.membership_role ?? "seller") as PlatformRole),
+    role: activeRole,
     tenantId: row.tenant_id,
     tenantName: row.tenant_name,
     tenantSlug: row.tenant_slug,
@@ -773,6 +851,9 @@ export function getSessionFromCookie(cookieHeader: string | undefined) {
     trialEndsAt: row.trial_ends_at,
     planCode: row.plan_code,
     salesGoalMonthly: row.sales_goal_monthly,
+    sellerPermissions: activeRole === "seller"
+      ? parseSellerPermissions(row.seller_permissions)
+      : { ...DEFAULT_SELLER_PERMISSIONS },
     expiresAt: row.expires_at,
   };
 }
@@ -899,6 +980,7 @@ export function listTenantMembersByTenantId(tenantId: number) {
       m.role as papel,
       m.active as ativo,
       m.sales_goal_monthly as meta_mensal,
+      m.seller_permissions,
       m.created_at as criado_em
     from memberships m
     join users u on u.id = m.user_id
@@ -907,6 +989,40 @@ export function listTenantMembersByTenantId(tenantId: number) {
   `).all(tenantId) as MemberRow[];
 
   return rows;
+}
+
+export function updateMemberPermissions(
+  actor: AuthenticatedSession,
+  memberId: number,
+  permissions: Partial<SellerPermissions>,
+) {
+  if (!actor.tenantId || actor.role !== "owner") {
+    throw new Error("Somente o owner pode alterar permissoes.");
+  }
+
+  const db = getDatabase();
+  const member = db.prepare(
+    "select id, role, tenant_id from memberships where id = ? and tenant_id = ?",
+  ).get(memberId, actor.tenantId) as { id: number; role: string; tenant_id: number } | undefined;
+
+  if (!member) {
+    throw new Error("Membro nao encontrado nesta loja.");
+  }
+
+  if (member.role === "owner") {
+    throw new Error("Nao e possivel restringir permissoes de um owner.");
+  }
+
+  const current = db.prepare("select seller_permissions from memberships where id = ?")
+    .get(memberId) as { seller_permissions: string | null } | undefined;
+
+  const merged: SellerPermissions = {
+    ...parseSellerPermissions(current?.seller_permissions),
+    ...permissions,
+  };
+
+  db.prepare("update memberships set seller_permissions = ?, updated_at = ? where id = ?")
+    .run(JSON.stringify(merged), nowIso(), memberId);
 }
 
 export function listTenantMembers(actor: AuthenticatedSession) {
@@ -969,12 +1085,18 @@ export function updateTenantAppState(actor: AuthenticatedSession, patch: AppStat
     on conflict(tenant_id) do nothing
   `).run(actor.tenantId, nowIso(), nowIso());
 
+  const ALLOWED_COLUMNS = new Set([
+    "veiculos_json", "leads_json", "vendas_json", "consultas_json",
+    "tarefas_json", "custos_json", "config_json", "memoria_json",
+  ]);
+
   const statements = Object.entries(patch)
     .filter(([, value]) => value !== undefined)
     .map(([key, value]) => ({
       column: resourceKey(key as keyof Omit<AppStateSnapshot, "vendedores">),
       value: JSON.stringify(value),
-    }));
+    }))
+    .filter((s) => s.column && ALLOWED_COLUMNS.has(s.column));
 
   if (!statements.length) {
     return getTenantAppState(actor);
@@ -1008,6 +1130,54 @@ export function updateTenantAppState(actor: AuthenticatedSession, patch: AppStat
   return getTenantAppState(actor);
 }
 
+const RESET_TOKEN_TTL_MS = 1000 * 60 * 30; // 30 minutos
+
+export function createPasswordResetToken(email: string): { token: string; userName: string } | null {
+  const db = getDb();
+  const normalizedEmail = normalizeEmail(email);
+  const user = db.prepare("select id, name from users where email = ? and active = 1").get(normalizedEmail) as { id: number; name: string } | undefined;
+  if (!user) return null;
+
+  // Invalida tokens anteriores nao usados
+  db.prepare("update password_reset_tokens set used_at = ? where user_id = ? and used_at is null").run(nowIso(), user.id);
+
+  const token = randomBytes(32).toString("base64url");
+  const tokenH = hashToken(token);
+  const expiresAt = new Date(Date.now() + RESET_TOKEN_TTL_MS).toISOString();
+
+  db.prepare("insert into password_reset_tokens (user_id, token_hash, expires_at, created_at) values (?, ?, ?, ?)").run(user.id, tokenH, expiresAt, nowIso());
+
+  writeAuditLog(db, { actorUserId: user.id, action: "auth.password_reset_requested" });
+
+  return { token, userName: user.name };
+}
+
+export function resetPasswordWithToken(token: string, newPassword: string): boolean {
+  const db = getDb();
+  const tokenH = hashToken(token);
+
+  const row = db.prepare(`
+    select id, user_id, expires_at, used_at
+    from password_reset_tokens
+    where token_hash = ?
+  `).get(tokenH) as { id: number; user_id: number; expires_at: string; used_at: string | null } | undefined;
+
+  if (!row) return false;
+  if (row.used_at) return false;
+  if (new Date(row.expires_at).getTime() < Date.now()) return false;
+
+  const newHash = hashPassword(newPassword);
+  db.prepare("update users set password_hash = ?, updated_at = ? where id = ?").run(newHash, nowIso(), row.user_id);
+  db.prepare("update password_reset_tokens set used_at = ? where id = ?").run(nowIso(), row.id);
+
+  // Revoga todas as sessoes ativas do usuario
+  db.prepare("update sessions set revoked_at = ? where user_id = ? and revoked_at is null").run(nowIso(), row.user_id);
+
+  writeAuditLog(db, { actorUserId: row.user_id, action: "auth.password_reset_completed" });
+
+  return true;
+}
+
 export function sessionToResponse(session: AuthenticatedSession) {
   const daysRemaining = session.trialEndsAt
     ? Math.max(0, Math.ceil((new Date(session.trialEndsAt).getTime() - Date.now()) / 86_400_000))
@@ -1037,6 +1207,7 @@ export function sessionToResponse(session: AuthenticatedSession) {
     permissions: {
       canManagePlatform: session.role === "platform_admin",
       canManageTeam: session.role === "owner",
+      sellerPermissions: session.sellerPermissions,
     },
     expiresAt: session.expiresAt,
   };

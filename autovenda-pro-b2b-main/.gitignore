@@ -12,6 +12,17 @@ dist
 dist-ssr
 *.local
 .env
+.env.backup
+.env.production
+.env.*.local
+
+# Database files (nunca commite dados de producao)
+data/*.sqlite
+data/*.sqlite-shm
+data/*.sqlite-wal
+
+# Vite timestamp cache
+vite.config.ts.timestamp-*
 
 # Editor directories and files
 .vscode/*
@@ -23,4 +34,3 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-autovenda-pro-b2b-main/.env.backup

@@ -343,7 +343,7 @@ export default function PosVenda() {
                               event.stopPropagation();
                               removeTarefaPosVenda(tarefa.id);
                             }}
-                            className="shrink-0 text-transparent transition-colors group-hover:text-muted-foreground hover:!text-red-400"
+                            className="shrink-0 text-muted-foreground/30 transition-colors sm:text-transparent sm:group-hover:text-muted-foreground hover:!text-red-400"
                             title="Excluir"
                           >
                             <Trash2 className="h-3.5 w-3.5" />

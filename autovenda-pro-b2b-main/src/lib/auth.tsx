@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { AuthSession, UserRole } from "@/services/auth";
-import { loginRequest, logoutRequest, validateSession } from "@/services/auth";
+import { loginRequest, logoutRequest, validateSession, DEFAULT_SELLER_PERMISSIONS } from "@/services/auth";
 
 type AuthContextValue = {
   user: AuthSession["user"] | null;
@@ -16,6 +16,7 @@ type AuthContextValue = {
 const EMPTY_PERMISSIONS = {
   canManagePlatform: false,
   canManageTeam: false,
+  sellerPermissions: { ...DEFAULT_SELLER_PERMISSIONS },
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -54,6 +55,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       },
       async logout() {
         setSession(null);
+        const storageKeys = Object.keys(localStorage).filter((k) => k.startsWith("rozzcar_"));
+        storageKeys.forEach((k) => localStorage.removeItem(k));
         try {
           await logoutRequest();
         } catch {

@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { runBackendHandler } from "../_shared";
+import { runBackendHandler } from "../../../_shared";
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
-  await runBackendHandler(req, res, "/api/auth/logout");
+  await runBackendHandler(req, res, req.url ?? "/api/tenant/members/0/permissions");
 }
