@@ -30,6 +30,7 @@ COPY --from=builder /app/dist ./dist
 # Codigo TypeScript do servidor
 COPY --from=builder /app/server ./server
 COPY --from=builder /app/src/lib/app-state.ts ./src/lib/app-state.ts
+COPY --from=builder /app/src/lib/fipe.ts ./src/lib/fipe.ts
 COPY --from=builder /app/src/store/types.ts ./src/store/types.ts
 COPY --from=builder /app/tsconfig*.json ./
 
