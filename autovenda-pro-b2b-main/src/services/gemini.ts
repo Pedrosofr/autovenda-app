@@ -71,10 +71,10 @@ const PROMPT = `Voce e um especialista em venda de veiculos seminovos no Brasil,
 
 ESTRUTURA DO JSON ESPERADO:
 {
-  "titulo": "titulo atrativo para anuncio (maximo 60 caracteres)",
-  "descricaoOlx": "descricao para OLX com itens separados por quebra de linha",
-  "descricaoMarketplace": "descricao para Marketplace com itens separados por quebra de linha",
-  "descricaoWhatsapp": "mensagem para WhatsApp com itens separados por quebra de linha"
+  "titulo": "Marca Modelo Versao Motorizacao Ano — apenas isso, sem opcionais (ex: Chevrolet Cruze LT 1.8 2012)",
+  "descricaoOlx": "descricao formatada conforme estrutura abaixo",
+  "descricaoMarketplace": "mesma estrutura da descricaoOlx",
+  "descricaoWhatsapp": "mesma estrutura da descricaoOlx"
 }
 
 REGRAS DE CONTEUDO:
@@ -82,44 +82,44 @@ REGRAS DE CONTEUDO:
 - Se nao tiver certeza se o item existe, NAO inclua. E melhor omitir do que mentir.
 - A COR deve ser exatamente a que foi informada nos dados. Se nao foi informada, omita a linha de cor.
 - Use o conhecimento do modelo/versao para inferir equipamentos de serie corretamente (ex: Cruze LT 2012 tem direcao eletrica, nao hidraulica).
+- O TITULO deve conter APENAS: Marca + Modelo + Versao + Motorizacao + Ano. Nenhum opcional no titulo.
 - Sem emojis. Nao use: "bom estado", "otima opcao", "bem conservado", "nao perca".
 
-ESTRUTURA OBRIGATORIA (nesta ordem, cada item em linha separada com \n):
+ESTRUTURA OBRIGATORIA DA DESCRICAO (nesta ordem, cada item em linha separada com \n):
 
-Linha 1: "Marca Modelo Versao Ano" (ex: "Chevrolet Cruze LT 1.8 2012")
+Linha 1: "Marca Modelo Versao Motorizacao Ano" (ex: "Chevrolet Cruze LT 1.8 2012")
 Linha 2: vazio ("")
-Linha 3: Cor do veiculo (ex: "Prata")
+Linha 3: Cor do veiculo (ex: "Prata") — somente se informada nos dados
 Linha 4: vazio ("")
-Linha 5+: Opcionais que fazem diferenca, UM POR LINHA, apenas os que o veiculo realmente tem (via fotos ou conhecimento da versao):
-  - "Completo" ou "Basico" apenas para carros acima de 8 anos onde isso importa; para carros novos/top omita
-  - "Teto solar" (se tiver)
-  - "Multimidia" (se tiver)
-  - "Comandos no volante" (se tiver)
-  - "Camera de re" (se tiver)
-  - "Sensor de estacionamento" (se tiver)
-  - "Farol de neblina" (se tiver)
-  - "Farol full LED" ou "Farol de LED" (se tiver)
-  - "Retrovisor eletrico" (se tiver)
-  - "Rodas de liga leve" (se tiver)
-  - "Bancos em couro" ou "Bancos em couro bege" (conforme cor vista nas fotos)
-  - "Painel digital TFT" (se tiver)
-  - "Ar-condicionado dual zone" ou "Ar-condicionado" (conforme o modelo)
-  - "Direcao eletrica" ou "Direcao hidraulica" (use o correto para o modelo/ano)
-  - "Cambio automatico" ou "Cambio CVT" (se nao for manual)
-  - "Start/Stop" (se tiver)
-  - "Keyless entry" ou "Entrada sem chave" (se tiver)
-  - "Paddle shift" (se tiver)
-  - "Banco do motorista com regulagem eletrica" (se tiver)
-  - "Vidros eletricos" (se todos os vidros forem eletricos)
-  - "Travas eletricas" (se tiver)
-  - "Alarme de fabrica" (se tiver)
-  - "Cruise control" (se tiver)
-  - "Sistema de som premium" (se tiver, ex: Bose, Harman, etc)
-  - "Assistente de partida em rampa" (se tiver)
-  - "Traction control" (se tiver)
-  - Qualquer outro diferencial visivel nas fotos ou confirmado na versao
+Linha 5+: Opcionais UM POR LINHA com bullet "•" na frente, ordenados do mais ao menos valorizado pelo mercado:
+  • "• Teto solar" (se tiver)
+  • "• Multimidia" (se tiver)
+  • "• Painel digital TFT" (se tiver)
+  • "• Camera de re" (se tiver)
+  • "• Sensor de estacionamento" (se tiver)
+  • "• Bancos em couro" ou "• Bancos em couro bege" (conforme cor nas fotos)
+  • "• Rodas de liga leve" (se tiver)
+  • "• Ar-condicionado dual zone" ou "• Ar-condicionado" (conforme o modelo)
+  • "• Cambio automatico" ou "• Cambio CVT" (se nao for manual)
+  • "• Paddle shift" (se tiver)
+  • "• Keyless entry" (se tiver)
+  • "• Farol full LED" ou "• Farol de LED" (se tiver)
+  • "• Farol de neblina" (se tiver)
+  • "• Comandos no volante" (se tiver)
+  • "• Cruise control" (se tiver)
+  • "• Direcao eletrica" (use o correto para o modelo/ano)
+  • "• Banco do motorista com regulagem eletrica" (se tiver)
+  • "• Retrovisor eletrico" (se tiver)
+  • "• Vidros eletricos" (se tiver)
+  • "• Travas eletricas" (se tiver)
+  • "• Start/Stop" (se tiver)
+  • "• Sistema de som premium" (se tiver, ex: Bose, Harman)
+  • "• Alarme de fabrica" (se tiver)
+  • "• Traction control" (se tiver)
+  • "• Completo" — apenas para carros acima de 8 anos onde isso importa
+  - Qualquer outro diferencial visivel nas fotos ou confirmado na versao, com "•" na frente
 Linha seguinte: vazio ("")
-Proximo: Uma frase curta e impactante personalizada para o carro (ex: "Cruze, conforto e qualidade pra voce e sua familia.")
+Proximo: Uma frase curta e impactante personalizada para este carro especifico
 Linha seguinte: vazio ("")
 Proximo: "Aceitamos financiamento em ate 60x e seu usado na troca."
 Proximo: "Contato: {{telefone}}" (use o telefone dos dados se disponivel)
