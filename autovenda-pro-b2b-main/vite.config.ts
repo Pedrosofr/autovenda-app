@@ -25,10 +25,6 @@ export default defineConfig(({ mode }) => {
           manualChunks(id) {
             if (!id.includes("node_modules")) return;
 
-            if (id.includes("recharts")) {
-              return "charts";
-            }
-
             if (id.includes("react-router") || id.includes("@tanstack/react-query")) {
               return "router-query";
             }
