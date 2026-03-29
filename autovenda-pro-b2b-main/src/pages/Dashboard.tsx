@@ -155,7 +155,7 @@ export default function Dashboard() {
   return (
     <div className="space-y-5 lg:space-y-6 max-w-[1480px] mx-auto">
       <div className="flex flex-col xl:flex-row xl:items-end justify-between gap-4 animate-fade-up">
-        <div>
+        <div className="text-center xl:text-left">
           <p className="text-white/32 text-xs font-semibold uppercase tracking-[0.24em]">Painel Geral</p>
           <h1 className="text-[2rem] sm:text-[2.4rem] font-extrabold text-white mt-1 tracking-tight">
             {nomesMes[mes]} <span className="text-gradient">{ano}</span>
@@ -165,7 +165,7 @@ export default function Dashboard() {
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:flex-wrap sm:justify-end">
           <Link
             to="/creditos"
-            className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-full border border-emerald-400/20 bg-gradient-to-r from-emerald-500 to-teal-500 px-4 text-xs font-extrabold uppercase tracking-[0.16em] text-white shadow-lg shadow-emerald-500/25 transition-all hover:shadow-emerald-500/40 hover:scale-[1.02] active:scale-[0.98] sm:w-auto"
+            className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-full border border-emerald-400/30 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 px-5 text-xs font-extrabold uppercase tracking-[0.16em] text-white shadow-lg shadow-emerald-500/30 transition-all hover:shadow-emerald-500/50 hover:scale-[1.03] active:scale-[0.97] sm:w-auto ring-1 ring-emerald-400/10"
           >
             <Wallet className="h-4 w-4" />
             {"Cr\u00e9ditos"}
@@ -177,7 +177,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 xl:grid-cols-4 gap-4">
         {[
           {
             label: "Carros Vendidos",
@@ -249,7 +249,7 @@ export default function Dashboard() {
               </div>
 
               <div className="mt-2 flex flex-col gap-1 sm:flex-row sm:items-end sm:gap-0">
-                <p className="text-3xl lg:text-[2.55rem] font-black text-white tabular-nums leading-none">{kpi.value}</p>
+                <p className="text-3xl md:text-[2rem] lg:text-[2.55rem] font-black text-white tabular-nums leading-none">{kpi.value}</p>
                 {kpi.suffix && <span className="text-white/32 text-sm font-bold sm:ml-1 sm:text-base">{kpi.suffix}</span>}
               </div>
               <p className="text-white/42 text-xs uppercase tracking-[0.18em] font-bold mt-3">{kpi.label}</p>
@@ -335,7 +335,7 @@ export default function Dashboard() {
               return (
                 <div
                   key={r.id}
-                  className={`flex flex-col items-start gap-4 rounded-xl border ${glowBg} px-4 py-4 transition-all duration-200 hover:scale-[1.01] sm:px-5 md:flex-row md:items-center lg:gap-6`}
+                  className={`flex flex-col items-center gap-4 rounded-xl border ${glowBg} px-4 py-4 transition-all duration-200 hover:scale-[1.01] sm:px-5 md:flex-row md:items-center lg:gap-6`}
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-white/70">
@@ -355,7 +355,7 @@ export default function Dashboard() {
                     </Avatar>
                   </div>
 
-                  <div className="w-full min-w-0 flex-1">
+                  <div className="w-full min-w-0 flex-1 text-center md:text-left">
                     <p className={`font-extrabold text-lg ${nameColor}`}>{r.nome}</p>
                     <p className="text-white/24 text-[11px] uppercase tracking-[0.14em] font-bold mt-1">
                       {r.valor > 0 ? `R$ ${(r.valor / 1000).toFixed(0)}k faturado` : "Sem vendas ainda"}
@@ -405,7 +405,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 animate-fade-up">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 animate-fade-up">
         {[
           { label: "Total de Ve\u00edculos", value: veiculos.length, icon: Car, color: "#3b82f6" },
           { label: "Dispon\u00edveis", value: emEstoque, icon: Eye, color: "#10b981" },

@@ -1198,7 +1198,17 @@ export default function Estoque() {
                   <Input value={draft.valorVenda} onChange={(e) => updateDraft("valorVenda", e.target.value)} placeholder="Valor de venda" className="bg-white/5 border-white/10 text-white placeholder:text-white/20" />
                   <Input value={draft.km} onChange={(e) => updateDraft("km", e.target.value)} placeholder="KM" className="bg-white/5 border-white/10 text-white placeholder:text-white/20" />
                   <Input value={draft.cor} onChange={(e) => updateDraft("cor", e.target.value)} placeholder="Cor" className="bg-white/5 border-white/10 text-white placeholder:text-white/20" />
-                  <Input value={draft.cambio} onChange={(e) => updateDraft("cambio", e.target.value)} placeholder="Cambio" className="bg-white/5 border-white/10 text-white placeholder:text-white/20" />
+                  <Select value={draft.cambio} onValueChange={(value: string) => updateDraft("cambio", value)}>
+                    <SelectTrigger className="bg-white/5 border-white/10 text-white">
+                      <SelectValue placeholder="Cambio" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[hsl(230,18%,11%)] border-white/10 text-white">
+                      <SelectItem value="Manual">Manual</SelectItem>
+                      <SelectItem value="Automatico">Automatico</SelectItem>
+                      <SelectItem value="CVT">CVT</SelectItem>
+                      <SelectItem value="Automatizado">Automatizado</SelectItem>
+                    </SelectContent>
+                  </Select>
                   <Select value={draft.multimidia} onValueChange={(value: "" | "sim" | "nao") => updateDraft("multimidia", value)}>
                     <SelectTrigger className="bg-white/5 border-white/10 text-white">
                       <SelectValue placeholder="Multimidia" />
@@ -1275,9 +1285,9 @@ export default function Estoque() {
       </Dialog>
 
       <Dialog open={!!showDetail} onOpenChange={() => setShowDetail(null)}>
-        <DialogContent className="w-[calc(100vw-0.5rem)] sm:w-[calc(100vw-1.5rem)] max-w-5xl h-[94dvh] overflow-hidden p-0 bg-[hsl(230,18%,11%)] border-white/10">
+        <DialogContent className="w-[calc(100vw-0.5rem)] sm:w-[calc(100vw-1.5rem)] max-w-5xl h-[94dvh] overflow-y-auto lg:overflow-hidden p-0 bg-[hsl(230,18%,11%)] border-white/10">
           {showDetail && (
-            <div className="grid h-full items-start lg:grid-cols-[minmax(0,1.05fr)_minmax(360px,0.95fr)]">
+            <div className="grid items-start lg:h-full lg:grid-cols-[minmax(0,1.05fr)_minmax(360px,0.95fr)]">
               {(() => {
                 const publication = getPublicationPhotoIndices(showDetail);
                 const coverIndex = publication.capa;
@@ -1289,7 +1299,7 @@ export default function Estoque() {
                   <img
                     src={showDetail.fotos[detailPhotoIdx]}
                     alt={showDetail.modelo}
-                    className="max-h-[42dvh] w-full rounded-xl object-contain sm:max-h-[56dvh] lg:max-h-[72dvh]"
+                    className="max-h-[32dvh] w-full rounded-xl object-contain sm:max-h-[56dvh] lg:max-h-[72dvh]"
                     style={{ filter: filtersFromAjustes(showDetail.ajustesFoto ?? defaultAjustes) }}
                   />
                 </div>
@@ -1336,7 +1346,7 @@ export default function Estoque() {
                 )}
               </div>
 
-              <div className="max-h-[94dvh] overflow-y-auto p-3 sm:p-6 space-y-3 sm:space-y-4">
+              <div className="lg:max-h-[94dvh] lg:overflow-y-auto p-3 sm:p-6 space-y-3 sm:space-y-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <h2 className="text-lg sm:text-xl font-extrabold text-white">{showDetail.modelo}</h2>

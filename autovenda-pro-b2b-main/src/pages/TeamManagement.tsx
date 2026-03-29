@@ -130,7 +130,7 @@ export default function TeamManagement() {
         </p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Card className="border-white/10 bg-white/[0.03] text-white shadow-none">
           <CardHeader className="pb-3">
             <CardDescription className="text-white/45">Usuarios ativos</CardDescription>
@@ -153,7 +153,7 @@ export default function TeamManagement() {
         </Card>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[1.05fr,1.55fr]">
+      <div className="grid gap-6 lg:grid-cols-[1fr,1.2fr]">
         <Card className="border-white/10 bg-[linear-gradient(180deg,rgba(31,41,55,0.85),rgba(15,23,42,0.92))] text-white shadow-none">
           <CardHeader>
             <CardTitle className="text-xl">Novo usuario da loja</CardTitle>
@@ -212,12 +212,12 @@ export default function TeamManagement() {
               </div>
               <div className="space-y-2">
                 <Label className="text-white/70">Perfil de acesso</Label>
-                <div className="grid gap-3 md:grid-cols-2">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <button
                     type="button"
-                    className={`rounded-2xl border px-4 py-3 text-left transition ${
+                    className={`rounded-2xl border px-4 py-3.5 text-left transition ${
                       form.role === "owner"
-                        ? "border-blue-500/30 bg-blue-500/10 text-white"
+                        ? "border-blue-500/30 bg-blue-500/10 text-white ring-1 ring-blue-500/20"
                         : "border-white/10 bg-black/20 text-white/70 hover:bg-white/[0.05]"
                     }`}
                     onClick={() => setForm((current) => ({ ...current, role: "owner" }))}
@@ -232,9 +232,9 @@ export default function TeamManagement() {
                   </button>
                   <button
                     type="button"
-                    className={`rounded-2xl border px-4 py-3 text-left transition ${
+                    className={`rounded-2xl border px-4 py-3.5 text-left transition ${
                       form.role === "seller"
-                        ? "border-emerald-500/30 bg-emerald-500/10 text-white"
+                        ? "border-emerald-500/30 bg-emerald-500/10 text-white ring-1 ring-emerald-500/20"
                         : "border-white/10 bg-black/20 text-white/70 hover:bg-white/[0.05]"
                     }`}
                     onClick={() => setForm((current) => ({ ...current, role: "seller" }))}
@@ -278,9 +278,9 @@ export default function TeamManagement() {
                   <TableRow className="border-white/10 hover:bg-transparent">
                     <TableHead className="text-white/45">Pessoa</TableHead>
                     <TableHead className="text-white/45">Papel</TableHead>
-                    <TableHead className="text-white/45">Meta</TableHead>
+                    <TableHead className="hidden md:table-cell text-white/45">Meta</TableHead>
                     <TableHead className="text-white/45">Status</TableHead>
-                    <TableHead className="text-white/45">Criado em</TableHead>
+                    <TableHead className="hidden md:table-cell text-white/45">Criado em</TableHead>
                     <TableHead className="text-white/45"></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -294,7 +294,7 @@ export default function TeamManagement() {
                           </div>
                           <div>
                             <div className="font-semibold text-white">{member.nome}</div>
-                            <div className="text-xs text-white/45">{member.email}</div>
+                            <div className="max-w-[150px] truncate text-xs text-white/45">{member.email}</div>
                           </div>
                         </div>
                       </TableCell>
@@ -310,7 +310,7 @@ export default function TeamManagement() {
                           {member.papel === "owner" ? "Acesso total" : "Somente vendedor"}
                         </Badge>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="hidden md:table-cell">
                         <div className="flex items-center gap-2 text-white/75">
                           <Target className="h-3.5 w-3.5 text-blue-300" />
                           {member.meta_mensal ?? 0}
@@ -328,7 +328,7 @@ export default function TeamManagement() {
                           {member.ativo ? "Ativo" : "Inativo"}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-white/65">
+                      <TableCell className="hidden md:table-cell text-white/65">
                         {new Date(member.criado_em).toLocaleDateString("pt-BR")}
                       </TableCell>
                       <TableCell>
@@ -356,7 +356,7 @@ export default function TeamManagement() {
 
       {/* Modal de permissoes */}
       <Dialog open={!!editingMember} onOpenChange={(open) => { if (!open) setEditingMember(null); }}>
-        <DialogContent className="w-[calc(100vw-1rem)] sm:w-full max-w-md max-h-[92dvh] overflow-y-auto border-white/10 bg-[hsl(230,20%,10%)] text-white">
+        <DialogContent className="w-[calc(100vw-2rem)] sm:w-full max-w-md max-h-[92dvh] overflow-y-auto border-white/10 bg-[hsl(230,20%,10%)] text-white">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold">
               Permissoes — {editingMember?.nome}
@@ -374,7 +374,7 @@ export default function TeamManagement() {
                   key={key}
                   type="button"
                   onClick={() => setEditingPerms((prev) => ({ ...prev, [key]: !prev[key] }))}
-                  className={`w-full flex items-center justify-between rounded-xl border px-4 py-3 text-left transition-all ${
+                  className={`w-full flex items-center justify-between rounded-xl border px-4 py-4 text-left transition-all min-h-[56px] ${
                     enabled
                       ? "border-emerald-500/25 bg-emerald-500/8 hover:bg-emerald-500/12"
                       : "border-white/8 bg-white/[0.02] hover:bg-white/[0.04]"
