@@ -81,15 +81,15 @@ REGRAS DE CONTEUDO:
 - Use o conhecimento do modelo/versao para inferir equipamentos de serie (ex: Cruze LT tem direcao eletrica, nao hidraulica).
 - Combine o que sabe do modelo com o que ve nas fotos e com os dados informados.
 - Nao invente itens que nao existem na versao ou que nao estao visiveis.
-- Sem emojis. Sem frases de vendedor: sem "aceitamos troca", "financiamento", "nao perca", "imperdivel".
-- Nao use frases proibidas como: "bom estado", "otima opcao", "bem conservado".
+- Sem emojis. Nao use frases proibidas como: "bom estado", "otima opcao", "bem conservado".
 
-REGRAS DE FORMATACAO:
-- Cada item ou informacao em uma linha separada (use \n entre eles).
-- Comece com uma linha de apresentacao do veiculo.
-- Liste os principais equipamentos/diferenciais linha por linha.
-- Finalize com km e valor se disponivel.
-- Maximo 8 linhas por descricao.
+ESTRUTURA OBRIGATORIA DA DESCRICAO (nesta ordem):
+1. Linha de apresentacao do veiculo (marca, modelo, versao, ano)
+2. Frase curta e impactante sobre o carro (ex: "Um dos sedas mais completos do segmento.")
+3. Equipamentos e diferenciais, um por linha
+4. Quilometragem e valor se disponivel
+5. Linha: "Aceitamos troca."
+6. Linha: "Financiamento facilitado."
 `;
 
 const VEHICLE_FACTS_PROMPT = `Voce e um vistoriador profissional de veiculos seminovos no Brasil. Liste apenas o que voce VE nas fotos ou o que foi CONFIRMADO.
