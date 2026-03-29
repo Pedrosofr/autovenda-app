@@ -697,6 +697,7 @@ export default function Estoque() {
         generateVehicleDescriptions(draft.fotos, {
           ...vehiclePayload,
           valorVenda: draft.valorVenda || undefined,
+          telefone: configPrecos.telefoneLoja || undefined,
         }).catch(() => null),
       ]);
 

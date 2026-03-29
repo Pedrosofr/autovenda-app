@@ -78,18 +78,32 @@ ESTRUTURA DO JSON ESPERADO:
 }
 
 REGRAS DE CONTEUDO:
-- Use o conhecimento do modelo/versao para inferir equipamentos de serie (ex: Cruze LT tem direcao eletrica, nao hidraulica).
-- Combine o que sabe do modelo com o que ve nas fotos e com os dados informados.
-- Nao invente itens que nao existem na versao ou que nao estao visiveis.
-- Sem emojis. Nao use frases proibidas como: "bom estado", "otima opcao", "bem conservado".
+- Use o conhecimento do modelo/versao para inferir equipamentos de serie corretamente (ex: Cruze LT 2012 tem direcao eletrica, nao hidraulica).
+- Combine conhecimento do modelo com o que ve nas fotos e dados informados.
+- Nao invente itens que nao existem na versao ou que nao estao confirmados.
+- Sem emojis. Nao use: "bom estado", "otima opcao", "bem conservado", "nao perca".
 
-ESTRUTURA OBRIGATORIA DA DESCRICAO (nesta ordem):
-1. Linha de apresentacao do veiculo (marca, modelo, versao, ano)
-2. Frase curta e impactante sobre o carro (ex: "Um dos sedas mais completos do segmento.")
-3. Equipamentos e diferenciais, um por linha
-4. Quilometragem e valor se disponivel
-5. Linha: "Aceitamos troca."
-6. Linha: "Financiamento facilitado."
+ESTRUTURA OBRIGATORIA (nesta ordem, cada item em linha separada com \n):
+
+Linha 1: "Marca Modelo Versao Ano" (ex: "Chevrolet Cruze LT 1.8 2012")
+Linha 2: vazio ("")
+Linha 3: Cor do veiculo (ex: "Prata")
+Linha 4: vazio ("")
+Linha 5+: Opcionais que fazem diferenca, UM POR LINHA, apenas os relevantes:
+  - "Completo" ou "Basico" apenas para carros acima de 8 anos onde isso importa; para carros novos/top omita
+  - "Multimidia" (se tiver)
+  - "Comandos no volante" (se tiver)
+  - "Retrovisor eletrico" (se tiver)
+  - "Rodas de liga" (se tiver)
+  - "Bancos em couro" ou "Bancos em couro bege" (se tiver)
+  - "Painel digital TFT" (se tiver)
+  - "Ar-condicionado dual zone" ou "Ar-condicionado" (conforme o modelo)
+  - Outros diferenciais relevantes da versao
+Linha seguinte: vazio ("")
+Proximo: Uma frase curta e impactante personalizada para o carro (ex: "Cruze, conforto e qualidade pra voce e sua familia.")
+Linha seguinte: vazio ("")
+Proximo: "Aceitamos financiamento em ate 60x e seu usado na troca."
+Proximo: "Contato: {{telefone}}" (use o telefone dos dados se disponivel)
 `;
 
 const VEHICLE_FACTS_PROMPT = `Voce e um vistoriador profissional de veiculos seminovos no Brasil. Liste apenas o que voce VE nas fotos ou o que foi CONFIRMADO.
@@ -193,12 +207,14 @@ export async function generateVehicleDescriptionsWithGemini(
     multimidia?: "sim" | "nao";
     opcionais?: string;
     contextoLoja?: string;
+    telefone?: string;
   }
 ): Promise<AIDescriptionsResult> {
   const parts: any[] = [];
   const category = inferVehicleCategory(vehicleData.modelo);
 
-  const dataText = `${PROMPT}\n\nDADOS: ${JSON.stringify(vehicleData)}\nCATEGORIA: ${category}\n${categoryGuidance(category)}`;
+  const promptFinal = PROMPT.replace("{{telefone}}", vehicleData.telefone || "");
+  const dataText = `${promptFinal}\n\nDADOS: ${JSON.stringify(vehicleData)}\nCATEGORIA: ${category}\n${categoryGuidance(category)}`;
   parts.push({ text: dataText });
 
   for (const img of imageBase64.slice(0, MAX_VEHICLE_IMAGES)) {
