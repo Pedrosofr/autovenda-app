@@ -80,6 +80,7 @@ ESTRUTURA DO JSON ESPERADO:
 REGRAS DE CONTEUDO:
 - NUNCA invente ou suponha um opcional. So inclua o que voce VE nas fotos OU o que e comprovadamente de serie na versao exata do veiculo.
 - Se nao tiver certeza se o item existe, NAO inclua. E melhor omitir do que mentir.
+- A COR deve ser exatamente a que foi informada nos dados. Se nao foi informada, omita a linha de cor.
 - Use o conhecimento do modelo/versao para inferir equipamentos de serie corretamente (ex: Cruze LT 2012 tem direcao eletrica, nao hidraulica).
 - Sem emojis. Nao use: "bom estado", "otima opcao", "bem conservado", "nao perca".
 
@@ -293,7 +294,14 @@ function sanitizeTitle(value: string) {
 
 function sanitizeGeneratedText(value: string) {
   if (!value) return "";
-  return value.replace(/\r/g, "").replace(/\s{2,}/g, " ").trim();
+  // Preserva quebras de linha, remove apenas espacos duplos dentro de cada linha
+  return value
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .split("\n")
+    .map(l => l.replace(/  +/g, " ").trim())
+    .join("\n")
+    .trim();
 }
 
 function postFilterGeneratedText(value: string) {
@@ -301,7 +309,7 @@ function postFilterGeneratedText(value: string) {
 }
 
 function formatWhatsappText(value: string) {
-  return value.split("\n").map(l => l.trim()).filter(Boolean).slice(0, 5).join("\n");
+  return value.split("\n").map(l => l.trim()).slice(0, 12).join("\n");
 }
 
 export async function estimarCustosVeiculo(params: any) {
