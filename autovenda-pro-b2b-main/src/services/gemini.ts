@@ -67,23 +67,29 @@ function categoryGuidance(category: VehicleCategory) {
   }
 }
 
-const PROMPT = `Voce e um especialista em venda de veiculos seminovos no Brasil, com foco em criar anuncios completos, persuasivos e uteis para lojistas. Analise as fotos e dados deste veiculo e retorne um objeto JSON funcional.
+const PROMPT = `Voce e um especialista em venda de veiculos seminovos no Brasil, com foco em criar anuncios completos e uteis para lojistas. Analise as fotos e dados deste veiculo e retorne um objeto JSON funcional.
 
 ESTRUTURA DO JSON ESPERADO:
 {
   "titulo": "titulo atrativo para anuncio (maximo 60 caracteres)",
-  "descricaoOlx": "descricao curta para OLX (estilo anuncio profissional, direto)",
-  "descricaoMarketplace": "descricao curta para Marketplace (seco e sem emojis)",
-  "descricaoWhatsapp": "mensagem curta para WhatsApp (humana e objetiva)"
+  "descricaoOlx": "descricao para OLX com itens separados por quebra de linha",
+  "descricaoMarketplace": "descricao para Marketplace com itens separados por quebra de linha",
+  "descricaoWhatsapp": "mensagem para WhatsApp com itens separados por quebra de linha"
 }
 
-REGRAS:
-- Use estilo real de Marketplace brasileiro.
-- Nao use emojis.
-- Sem frases genericas ou marketing barato.
-- Priorize linhas curtas.
-- Ignore dados que conflitem com o que voce ve nas fotos. Prioze a imagem real.
-- Nao use frases proibidas como: "bom estado", "otima opcao", "imperdivel".
+REGRAS DE CONTEUDO:
+- Use o conhecimento do modelo/versao para inferir equipamentos de serie (ex: Cruze LT tem direcao eletrica, nao hidraulica).
+- Combine o que sabe do modelo com o que ve nas fotos e com os dados informados.
+- Nao invente itens que nao existem na versao ou que nao estao visiveis.
+- Sem emojis. Sem frases de vendedor: sem "aceitamos troca", "financiamento", "nao perca", "imperdivel".
+- Nao use frases proibidas como: "bom estado", "otima opcao", "bem conservado".
+
+REGRAS DE FORMATACAO:
+- Cada item ou informacao em uma linha separada (use \n entre eles).
+- Comece com uma linha de apresentacao do veiculo.
+- Liste os principais equipamentos/diferenciais linha por linha.
+- Finalize com km e valor se disponivel.
+- Maximo 8 linhas por descricao.
 `;
 
 const VEHICLE_FACTS_PROMPT = `Voce e um vistoriador profissional de veiculos seminovos no Brasil. Liste apenas o que voce VE nas fotos ou o que foi CONFIRMADO.
