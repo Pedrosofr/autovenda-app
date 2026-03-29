@@ -579,28 +579,29 @@ async function handleGemini(request: RequestShape, headers: Record<string, strin
     return json(429, { error: "Muitas requisicoes de IA. Aguarde alguns segundos." }, { "Retry-After": String(retryAfter) });
   }
 
-  const apiKey = process.env.GOOGLE_API_KEY;
-  if (!apiKey) {
+  const apiKeys = [process.env.GOOGLE_API_KEY, process.env.GOOGLE_API_KEY_2].filter(Boolean) as string[];
+  if (apiKeys.length === 0) {
     return json(503, { error: "GOOGLE_API_KEY nao configurada." });
   }
 
-  const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+  const GEMINI_MODEL = "gemini-2.5-flash";
   const bodyStr = JSON.stringify(request.body ?? {});
 
-  let upstream = await fetch(GEMINI_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: bodyStr,
-  });
+  const tryKey = async (key: string) => fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${key}`,
+    { method: "POST", headers: { "Content-Type": "application/json" }, body: bodyStr }
+  );
 
-  // Retry uma vez apos 5s se der rate limit (429)
+  let upstream = await tryKey(apiKeys[0]);
+
+  // Se der 429 tenta a segunda chave (se existir), senao aguarda e tenta de novo
   if (upstream.status === 429) {
-    await new Promise((r) => setTimeout(r, 5000));
-    upstream = await fetch(GEMINI_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: bodyStr,
-    });
+    if (apiKeys[1]) {
+      upstream = await tryKey(apiKeys[1]);
+    } else {
+      await new Promise((r) => setTimeout(r, 5000));
+      upstream = await tryKey(apiKeys[0]);
+    }
   }
 
   const text = await upstream.text();
