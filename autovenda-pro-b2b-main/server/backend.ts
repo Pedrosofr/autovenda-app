@@ -871,6 +871,10 @@ export async function handleBackendRequest(request: RequestShape): Promise<Respo
       return await handleResetPassword(request);
     }
 
+    if (request.path === "/api/auth/health") {
+      return json(200, { status: "ok" });
+    }
+
     if (request.path === "/api/platform/stores") {
       return await handlePlatformStores(request, headers);
     }
