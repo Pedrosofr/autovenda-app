@@ -584,7 +584,7 @@ async function handleGemini(request: RequestShape, headers: Record<string, strin
     return json(503, { error: "GOOGLE_API_KEY nao configurada." });
   }
 
-  const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+  const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
   const bodyStr = JSON.stringify(request.body ?? {});
 
   let upstream = await fetch(GEMINI_URL, {
