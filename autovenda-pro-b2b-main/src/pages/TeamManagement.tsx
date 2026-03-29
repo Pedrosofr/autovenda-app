@@ -124,13 +124,13 @@ export default function TeamManagement() {
     <div className="space-y-6 text-white">
       <div className="flex flex-col gap-2">
         <div className="text-xs font-semibold uppercase tracking-[0.24em] text-blue-300/80">Equipe</div>
-        <h1 className="text-3xl font-bold tracking-tight">Owner e vendedores da loja</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Owner e vendedores da loja</h1>
         <p className="max-w-3xl text-sm leading-6 text-white/55">
           {tenant?.name ?? "Sua loja"} fica com acessos separados, metas mensais e historico unico por conta.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:gap-4 sm:grid-cols-3">
         <Card className="border-white/10 bg-white/[0.03] text-white shadow-none">
           <CardHeader className="pb-3">
             <CardDescription className="text-white/45">Usuarios ativos</CardDescription>
@@ -155,13 +155,13 @@ export default function TeamManagement() {
 
       <div className="grid gap-6 lg:grid-cols-[1fr,1.2fr]">
         <Card className="border-white/10 bg-[linear-gradient(180deg,rgba(31,41,55,0.85),rgba(15,23,42,0.92))] text-white shadow-none">
-          <CardHeader>
-            <CardTitle className="text-xl">Novo usuario da loja</CardTitle>
+          <CardHeader className="p-4 sm:p-6">
+            <CardTitle className="text-lg sm:text-xl">Novo usuario da loja</CardTitle>
             <CardDescription className="text-white/45">
               Crie acessos com perfil administrativo ou somente operacional, sem compartilhar a senha principal da loja.
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0">
             <form className="space-y-4" onSubmit={handleCreateSeller}>
               <div className="space-y-2">
                 <Label htmlFor="sellerName" className="text-white/70">Nome</Label>
@@ -288,26 +288,26 @@ export default function TeamManagement() {
                   {members.map((member) => (
                     <TableRow key={member.id} className="border-white/10 hover:bg-white/[0.03]">
                       <TableCell>
-                        <div className="flex items-start gap-3">
-                          <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-500/10 text-blue-300">
+                        <div className="flex items-start gap-2 sm:gap-3">
+                          <div className="mt-0.5 hidden sm:flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-500/10 text-blue-300">
                             <Users2 className="h-4 w-4" />
                           </div>
-                          <div>
-                            <div className="font-semibold text-white">{member.nome}</div>
-                            <div className="max-w-[150px] truncate text-xs text-white/45">{member.email}</div>
+                          <div className="min-w-0 max-w-[120px] sm:max-w-none">
+                            <div className="font-semibold text-white truncate">{member.nome}</div>
+                            <div className="truncate text-xs text-white/45">{member.email}</div>
                           </div>
                         </div>
                       </TableCell>
                       <TableCell>
                         <Badge
                           variant="outline"
-                          className={
+                          className={`text-[10px] sm:text-xs ${
                             member.papel === "owner"
                               ? "border-blue-500/20 bg-blue-500/10 text-blue-300"
                               : "border-white/10 bg-white/5 text-white/70"
-                          }
+                          }`}
                         >
-                          {member.papel === "owner" ? "Acesso total" : "Somente vendedor"}
+                          {member.papel === "owner" ? "Acesso total" : "Vendedor"}
                         </Badge>
                       </TableCell>
                       <TableCell className="hidden md:table-cell">
@@ -319,11 +319,11 @@ export default function TeamManagement() {
                       <TableCell>
                         <Badge
                           variant="outline"
-                          className={
+                          className={`text-[10px] sm:text-xs ${
                             member.ativo
                               ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-300"
                               : "border-red-500/20 bg-red-500/10 text-red-300"
-                          }
+                          }`}
                         >
                           {member.ativo ? "Ativo" : "Inativo"}
                         </Badge>
@@ -336,11 +336,11 @@ export default function TeamManagement() {
                           <Button
                             size="sm"
                             variant="outline"
-                            className="border-white/10 bg-white/5 text-white/70 hover:bg-white/10 hover:text-white gap-1.5"
+                            className="border-white/10 bg-white/5 text-white/70 hover:bg-white/10 hover:text-white gap-1.5 px-2 sm:px-3"
                             onClick={() => openPermissions(member)}
                           >
                             <Settings2 className="h-3.5 w-3.5" />
-                            Permissoes
+                            <span className="hidden sm:inline">Permissoes</span>
                           </Button>
                         )}
                       </TableCell>

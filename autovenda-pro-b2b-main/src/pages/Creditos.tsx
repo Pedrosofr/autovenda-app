@@ -121,7 +121,7 @@ export default function Creditos() {
       </div>
 
       <div className="grid gap-5 lg:grid-cols-[1.05fr_0.95fr]">
-        <section className="rounded-3xl border border-white/10 bg-[hsl(230,18%,11%)] p-5">
+        <section className="rounded-3xl border border-white/10 bg-[hsl(230,18%,11%)] p-3 sm:p-5">
           <div className="flex items-center gap-2 text-white">
             <Wallet className="h-5 w-5 text-emerald-300" />
             <h2 className="font-bold text-lg">Tabela de precos</h2>
@@ -133,7 +133,7 @@ export default function Creditos() {
               { nome: "2 fotos melhoradas", preco: PRECO_FOTOS, detalhe: "Capa + secundaria tratadas" },
               { nome: "1 consulta", preco: PRECO_CONSULTA, detalhe: "Consulta veicular unitária" },
             ].map((item) => (
-              <div key={item.nome} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-4 flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+              <div key={item.nome} className="rounded-2xl border border-white/10 bg-white/5 px-3 sm:px-4 py-3 sm:py-4 flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
                 <div className="min-w-0">
                   <p className="text-white font-semibold">{item.nome}</p>
                   <p className="text-white/35 text-sm mt-1">{item.detalhe}</p>
@@ -161,7 +161,7 @@ export default function Creditos() {
           </div>
         </section>
 
-        <section className="rounded-3xl border border-white/10 bg-[hsl(230,18%,11%)] p-5">
+        <section className="rounded-3xl border border-white/10 bg-[hsl(230,18%,11%)] p-3 sm:p-5">
           <div className="flex items-center gap-2 text-white">
             <CreditCard className="h-5 w-5 text-blue-300" />
             <h2 className="font-bold text-lg">Abastecer saldo</h2>
@@ -227,7 +227,7 @@ export default function Creditos() {
         </section>
       </div>
 
-      <section className="rounded-3xl border border-white/10 bg-[hsl(230,18%,11%)] p-5">
+      <section className="rounded-3xl border border-white/10 bg-[hsl(230,18%,11%)] p-3 sm:p-5">
         <div className="flex items-center gap-2 text-white">
           <ArrowDownCircle className="h-5 w-5 text-blue-300" />
           <h2 className="font-bold text-lg">Historico</h2>
@@ -236,19 +236,19 @@ export default function Creditos() {
         <div className="space-y-3 mt-5">
           {state.movimentos.length > 0 ? (
             state.movimentos.map((item) => (
-              <div key={item.id} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-4 flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+              <div key={item.id} className="rounded-2xl border border-white/10 bg-white/5 px-3 sm:px-4 py-3 sm:py-4 flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
                 <div className="flex items-start gap-3 min-w-0 w-full">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${item.tipo === "recarga" ? "bg-emerald-500/10 text-emerald-300" : "bg-amber-500/10 text-amber-300"}`}>
+                  <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shrink-0 ${item.tipo === "recarga" ? "bg-emerald-500/10 text-emerald-300" : "bg-amber-500/10 text-amber-300"}`}>
                     {item.tipo === "recarga" ? <ArrowDownCircle className="h-4 w-4" /> : <ArrowUpCircle className="h-4 w-4" />}
                   </div>
                   <div className="min-w-0">
-                    <p className="text-white font-semibold">{item.descricao}</p>
-                    <p className="text-white/35 text-sm mt-1">
+                    <p className="text-white font-semibold text-sm sm:text-base truncate">{item.descricao}</p>
+                    <p className="text-white/35 text-xs sm:text-sm mt-1 break-words">
                       {new Date(item.data).toLocaleString("pt-BR")} • saldo apos: {formatMoneyFromCents(item.saldoAposCentavos)}
                     </p>
                   </div>
                 </div>
-                <span className={`font-bold sm:self-center ${item.tipo === "recarga" ? "text-emerald-300" : "text-amber-300"}`}>
+                <span className={`font-bold shrink-0 sm:self-center ${item.tipo === "recarga" ? "text-emerald-300" : "text-amber-300"}`}>
                   {item.tipo === "recarga" ? "+" : "-"}{formatMoneyFromCents(item.valorCentavos)}
                 </span>
               </div>

@@ -191,12 +191,22 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <div className="flex-1 flex flex-col min-w-0">
           <header className="h-14 sm:h-16 flex items-center border-b border-white/5 bg-[hsl(230,20%,7%,0.8)] backdrop-blur-xl px-3 sm:px-5 shrink-0 sticky top-0 z-40">
             <div className="flex min-w-0 flex-1 items-center gap-3">
-              <SidebarTrigger>
-                <Menu className="h-5 w-5 text-white/40 hover:text-white transition-colors" />
+              <SidebarTrigger className="bg-gradient-to-br from-amber-500/15 to-orange-500/10 border border-amber-500/20 rounded-xl p-2 hover:from-amber-500/25 hover:to-orange-500/20 hover:border-amber-500/30 transition-all duration-200">
+                <Menu className="h-5 w-5 text-amber-400/80 hover:text-amber-300 transition-colors" />
               </SidebarTrigger>
-              <div className="min-w-0">
+              {/* Rozzcar logo - visible on mobile, hidden on md+ where sidebar shows it */}
+              <div className="flex items-center gap-2 md:hidden">
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shrink-0 shadow-lg shadow-amber-500/25">
+                  <Car className="w-4 h-4 text-white" />
+                </div>
+                <span className="font-extrabold text-white text-base tracking-tight">
+                  Rozz<span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-orange-400">car</span>
+                </span>
+              </div>
+              {/* Title - visible on md+ where sidebar shows logo */}
+              <div className="min-w-0 hidden md:block">
                 <div className="truncate text-sm font-semibold text-white">{title}</div>
-                <div className="hidden truncate text-xs text-white/40 sm:block">{subtitle}</div>
+                <div className="truncate text-xs text-white/40">{subtitle}</div>
               </div>
             </div>
             <Button

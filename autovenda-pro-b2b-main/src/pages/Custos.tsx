@@ -667,12 +667,14 @@ export default function Custos() {
           <h1 className="text-2xl font-extrabold text-white">Custos de Reparo</h1>
           <p className="text-white/30 text-sm mt-1">{veiculosCustos.length} veiculos na aba de custos</p>
         </div>
-        <Button onClick={abrirAdicionarVeiculo} className="card-gradient-blue text-white gap-2 w-full sm:w-auto">
-          <Plus className="h-4 w-4" /> Adicionar veiculo
-        </Button>
-        <Button variant="outline" onClick={() => setShowConfig(true)} className="border-white/10 text-white/60 hover:text-white gap-2 w-full sm:w-auto">
-          <Settings className="h-4 w-4" /> Configurar Preços da Loja
-        </Button>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Button onClick={abrirAdicionarVeiculo} className="card-gradient-blue text-white gap-2 w-full sm:w-auto">
+            <Plus className="h-4 w-4" /> Adicionar veiculo
+          </Button>
+          <Button variant="outline" onClick={() => setShowConfig(true)} className="border-white/10 text-white/60 hover:text-white gap-2 w-full sm:w-auto">
+            <Settings className="h-4 w-4" /> Configurar Preços da Loja
+          </Button>
+        </div>
       </div>
 
       {/* Preços ativos */}
@@ -1192,7 +1194,7 @@ export default function Custos() {
               </div>
 
               {/* ── Reparos já lançados ── */}
-              <div className="px-6 py-4 space-y-3">
+              <div className="px-4 sm:px-6 py-4 space-y-3">
                 <p className="text-white/50 text-[11px] font-bold uppercase tracking-widest">
                   Reparos lançados ({custosDoSelecionado.length})
                 </p>

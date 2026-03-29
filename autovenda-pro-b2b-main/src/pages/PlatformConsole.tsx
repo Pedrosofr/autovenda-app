@@ -585,10 +585,11 @@ export default function PlatformConsole() {
                       <TableCell className="text-white/75">{store.users_count}/{store.max_users}</TableCell>
                       <TableCell className="text-white/65">{formatTrialDate(store.trial_ends_at)}</TableCell>
                       <TableCell>
-                        <div className="flex flex-wrap justify-end gap-2">
+                        <div className="flex flex-wrap justify-end gap-1.5">
                           <Button
                             type="button"
                             variant="outline"
+                            size="sm"
                             className="border-white/10 bg-white/5 text-white hover:bg-white/10"
                             onClick={() => openStoreManagement(store)}
                           >
@@ -597,26 +598,29 @@ export default function PlatformConsole() {
                           <Button
                             type="button"
                             variant="outline"
+                            size="sm"
                             className="border-blue-500/20 bg-blue-500/10 text-blue-300 hover:bg-blue-500/20"
                             onClick={() => {
                               void handleGoToStoreLogin(store);
                             }}
                           >
-                            Login da loja
+                            Login
                           </Button>
                           <Button
                             type="button"
                             variant="outline"
+                            size="sm"
                             className="border-white/10 bg-white/5 text-white hover:bg-white/10"
                             disabled={updatingStoreId === store.id}
                             onClick={() => handleQuickStatusUpdate(store.id, { extendTrialDays: 7 }, "Trial estendido em 7 dias.")}
                           >
                             {updatingStoreId === store.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                            +7 dias
+                            +7d
                           </Button>
                           <Button
                             type="button"
                             variant="outline"
+                            size="sm"
                             className="border-emerald-500/20 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20"
                             disabled={updatingStoreId === store.id}
                             onClick={() => handleQuickStatusUpdate(store.id, { status: "active" }, "Loja ativada.")}
@@ -626,6 +630,7 @@ export default function PlatformConsole() {
                           <Button
                             type="button"
                             variant="outline"
+                            size="sm"
                             className="border-red-500/20 bg-red-500/10 text-red-300 hover:bg-red-500/20"
                             disabled={updatingStoreId === store.id}
                             onClick={() => handleQuickStatusUpdate(store.id, { status: "blocked" }, "Loja bloqueada.")}
@@ -652,7 +657,7 @@ export default function PlatformConsole() {
               {selectedStore ? `${selectedStore.name} (${selectedStore.users_count}/${selectedStore.max_users} usuarios)` : "Controle trial e acessos."}
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-6 lg:grid-cols-[0.95fr,1.25fr]">
+          <div className="grid gap-6 grid-cols-1 lg:grid-cols-[0.95fr,1.25fr]">
             <Card className="border-white/10 bg-white/[0.03] text-white shadow-none">
               <CardHeader>
                 <CardTitle className="text-lg">Configuracoes da loja</CardTitle>
@@ -818,6 +823,7 @@ export default function PlatformConsole() {
                       Carregando usuarios...
                     </div>
                   ) : (
+                    <div className="overflow-x-auto">
                     <Table>
                       <TableHeader>
                         <TableRow className="border-white/10 hover:bg-transparent">
@@ -863,6 +869,7 @@ export default function PlatformConsole() {
                         ))}
                       </TableBody>
                     </Table>
+                    </div>
                   )}
                 </CardContent>
               </Card>
