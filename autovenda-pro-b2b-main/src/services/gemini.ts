@@ -78,9 +78,9 @@ ESTRUTURA DO JSON ESPERADO:
 }
 
 REGRAS DE CONTEUDO:
+- NUNCA invente ou suponha um opcional. So inclua o que voce VE nas fotos OU o que e comprovadamente de serie na versao exata do veiculo.
+- Se nao tiver certeza se o item existe, NAO inclua. E melhor omitir do que mentir.
 - Use o conhecimento do modelo/versao para inferir equipamentos de serie corretamente (ex: Cruze LT 2012 tem direcao eletrica, nao hidraulica).
-- Combine conhecimento do modelo com o que ve nas fotos e dados informados.
-- Nao invente itens que nao existem na versao ou que nao estao confirmados.
 - Sem emojis. Nao use: "bom estado", "otima opcao", "bem conservado", "nao perca".
 
 ESTRUTURA OBRIGATORIA (nesta ordem, cada item em linha separada com \n):
