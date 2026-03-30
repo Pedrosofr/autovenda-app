@@ -63,7 +63,7 @@ export default function DashboardCharts({
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-      <div className="lg:col-span-4 rounded-2xl bg-[hsl(230,18%,11%)] border border-white/5 p-6 lg:p-7 animate-fade-up relative overflow-hidden">
+      <div className="lg:col-span-4 rounded-2xl bg-[hsl(230,18%,11%)] border border-white/5 p-4 sm:p-6 lg:p-7 animate-fade-up relative overflow-hidden">
         <div className="absolute -bottom-20 -left-20 w-40 h-40 rounded-full bg-blue-500/10 blur-[80px]" />
 
         <div className="relative z-10">
@@ -77,8 +77,8 @@ export default function DashboardCharts({
             </div>
           </div>
 
-          <div className="flex justify-center mb-5">
-            <div className="relative w-[190px] h-[190px]">
+          <div className="flex justify-center mb-4 sm:mb-5">
+            <div className="relative w-[150px] h-[150px] sm:w-[190px] sm:h-[190px]">
               <RadialBarChart
                 width={190}
                 height={190}
@@ -154,7 +154,7 @@ export default function DashboardCharts({
         </div>
       </div>
 
-      <div className="lg:col-span-8 rounded-2xl bg-[hsl(230,18%,11%)] border border-white/5 p-6 lg:p-7 animate-fade-up relative overflow-hidden">
+      <div className="lg:col-span-8 rounded-2xl bg-[hsl(230,18%,11%)] border border-white/5 p-4 sm:p-6 lg:p-7 animate-fade-up relative overflow-hidden">
         <div className="absolute -top-20 -right-20 w-40 h-40 rounded-full bg-purple-500/10 blur-[80px]" />
 
         <div className="relative z-10">

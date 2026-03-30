@@ -145,8 +145,8 @@ export default function Dashboard() {
           ))}
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-          <div className="lg:col-span-4 h-[460px] rounded-2xl bg-white/5" />
-          <div className="lg:col-span-8 h-[460px] rounded-2xl bg-white/5" />
+          <div className="lg:col-span-4 h-[280px] sm:h-[460px] rounded-2xl bg-white/5" />
+          <div className="lg:col-span-8 h-[280px] sm:h-[460px] rounded-2xl bg-white/5" />
         </div>
       </div>
     );
@@ -262,8 +262,8 @@ export default function Dashboard() {
       <Suspense
         fallback={
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-            <div className="lg:col-span-4 rounded-2xl bg-[hsl(230,18%,11%)] border border-white/5 h-[460px] animate-pulse" />
-            <div className="lg:col-span-8 rounded-2xl bg-[hsl(230,18%,11%)] border border-white/5 h-[460px] animate-pulse" />
+            <div className="lg:col-span-4 rounded-2xl bg-[hsl(230,18%,11%)] border border-white/5 h-[280px] sm:h-[460px] animate-pulse" />
+            <div className="lg:col-span-8 rounded-2xl bg-[hsl(230,18%,11%)] border border-white/5 h-[280px] sm:h-[460px] animate-pulse" />
           </div>
         }
       >
