@@ -62,50 +62,50 @@ export default function DashboardCharts({
   const topLabels = ["TOP 1", "TOP 2", "TOP 3"];
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-      <div className="lg:col-span-4 rounded-2xl bg-[hsl(230,18%,11%)] border border-white/5 p-4 sm:p-6 lg:p-7 animate-fade-up relative overflow-hidden">
+    <div className="grid grid-cols-2 lg:grid-cols-12 gap-3 sm:gap-5">
+      <div className="col-span-1 lg:col-span-4 rounded-2xl bg-[hsl(230,18%,11%)] border border-white/5 p-3 sm:p-6 lg:p-7 animate-fade-up relative overflow-hidden">
         <div className="absolute -bottom-20 -left-20 w-40 h-40 rounded-full bg-blue-500/10 blur-[80px]" />
 
         <div className="relative z-10">
-          <div className="flex items-center justify-between gap-3 mb-6">
+          <div className="flex items-center justify-between gap-2 mb-3 sm:mb-6">
             <div>
-              <p className="text-white font-bold text-base">Meta de Vendas</p>
-              <p className="text-white/35 text-xs mt-1">{"Desempenho do m\u00eas atual"}</p>
+              <p className="text-white font-bold text-xs sm:text-base">Meta de Vendas</p>
+              <p className="text-white/35 text-[10px] sm:text-xs mt-0.5 sm:mt-1 hidden sm:block">{"Desempenho do m\u00eas atual"}</p>
             </div>
-            <div className="rounded-full border border-blue-500/15 bg-blue-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-300">
+            <div className="rounded-full border border-blue-500/15 bg-blue-500/10 px-2 sm:px-3 py-0.5 sm:py-1 text-[9px] sm:text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-300">
               Meta
             </div>
           </div>
 
-          <div className="flex justify-center mb-4 sm:mb-5">
-            <div className="relative w-[150px] h-[150px] sm:w-[190px] sm:h-[190px]">
-              <RadialBarChart
-                width={190}
-                height={190}
-                cx={95}
-                cy={95}
-                innerRadius={66}
-                outerRadius={86}
-                barSize={15}
-                data={gaugeData}
-                startAngle={90}
-                endAngle={-270}
-              >
-                <RadialBar background={{ fill: "rgba(255,255,255,0.05)" }} dataKey="value" cornerRadius={10} />
-              </RadialBarChart>
+          <div className="flex justify-center mb-3 sm:mb-5">
+            <div className="relative w-[110px] h-[110px] sm:w-[190px] sm:h-[190px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <RadialBarChart
+                  cx="50%"
+                  cy="50%"
+                  innerRadius="65%"
+                  outerRadius="90%"
+                  barSize={12}
+                  data={gaugeData}
+                  startAngle={90}
+                  endAngle={-270}
+                >
+                  <RadialBar background={{ fill: "rgba(255,255,255,0.05)" }} dataKey="value" cornerRadius={10} />
+                </RadialBarChart>
+              </ResponsiveContainer>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <p className="text-4xl font-black text-white tabular-nums">{carros}</p>
-                <p className="text-white/35 text-sm font-semibold mt-1">de {metaTotal}</p>
+                <p className="text-2xl sm:text-4xl font-black text-white tabular-nums">{carros}</p>
+                <p className="text-white/35 text-[10px] sm:text-sm font-semibold mt-0.5 sm:mt-1">de {metaTotal}</p>
               </div>
             </div>
           </div>
 
-          <div className="space-y-3">
-            <div className="flex justify-between items-center text-sm">
+          <div className="space-y-2 sm:space-y-3">
+            <div className="flex justify-between items-center text-[10px] sm:text-sm">
               <span className="text-white/50">Progresso {nomesMes[mes]}</span>
               <span className="text-white font-bold">{progMeta.toFixed(0)}%</span>
             </div>
-            <div className="w-full h-3 bg-white/5 rounded-full overflow-hidden">
+            <div className="w-full h-2 sm:h-3 bg-white/5 rounded-full overflow-hidden">
               <div
                 className="h-full rounded-full transition-all duration-1000 ease-out"
                 style={{
@@ -116,29 +116,29 @@ export default function DashboardCharts({
                 }}
               />
             </div>
-            <p className="text-sm font-bold text-center mt-4">
+            <p className="text-[10px] sm:text-sm font-bold text-center mt-2 sm:mt-4">
               {metaTotal - carros > 0 ? (
                 <span className="text-blue-400">
-                  Faltam <span className="text-lg font-black">{metaTotal - carros}</span> carro{metaTotal - carros > 1 ? "s" : ""} para bater a meta
+                  Faltam <span className="text-sm sm:text-lg font-black">{metaTotal - carros}</span> carro{metaTotal - carros > 1 ? "s" : ""}
                 </span>
               ) : (
-                <span className="text-emerald-400">Meta batida com sucesso.</span>
+                <span className="text-emerald-400">Meta batida!</span>
               )}
             </p>
           </div>
 
-          <div className="mt-6 pt-5 border-t border-white/5 space-y-3">
+          <div className="mt-3 sm:mt-6 pt-3 sm:pt-5 border-t border-white/5 space-y-2 sm:space-y-3">
             {ranking.slice(0, 3).map((r, i) => (
-              <div key={r.id} className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3 min-w-0">
-                  <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] font-bold tracking-[0.18em] text-white/70">
+              <div key={r.id} className="flex items-center justify-between gap-1.5 sm:gap-3">
+                <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
+                  <span className="rounded-full border border-white/10 bg-white/5 px-1.5 sm:px-2.5 py-0.5 sm:py-1 text-[8px] sm:text-[10px] font-bold tracking-[0.18em] text-white/70 shrink-0">
                     {topLabels[i]}
                   </span>
-                  <span className="text-white text-sm font-semibold truncate">{r.nome}</span>
+                  <span className="text-white text-[10px] sm:text-sm font-semibold truncate">{r.nome}</span>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className="text-white text-sm font-bold">{r.qtd}/{r.meta}</span>
-                  <div className="w-16 h-1.5 bg-white/5 rounded-full overflow-hidden">
+                <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+                  <span className="text-white text-[10px] sm:text-sm font-bold">{r.qtd}/{r.meta}</span>
+                  <div className="w-8 sm:w-16 h-1 sm:h-1.5 bg-white/5 rounded-full overflow-hidden">
                     <div
                       className="h-full rounded-full"
                       style={{
@@ -154,29 +154,29 @@ export default function DashboardCharts({
         </div>
       </div>
 
-      <div className="lg:col-span-8 rounded-2xl bg-[hsl(230,18%,11%)] border border-white/5 p-4 sm:p-6 lg:p-7 animate-fade-up relative overflow-hidden">
+      <div className="col-span-1 lg:col-span-8 rounded-2xl bg-[hsl(230,18%,11%)] border border-white/5 p-3 sm:p-6 lg:p-7 animate-fade-up relative overflow-hidden">
         <div className="absolute -top-20 -right-20 w-40 h-40 rounded-full bg-purple-500/10 blur-[80px]" />
 
         <div className="relative z-10">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4 mb-3 sm:mb-6">
             <div>
-              <p className="text-white font-bold text-base">{"Evolu\u00e7\u00e3o de Vendas"}</p>
-              <p className="text-white/35 text-sm mt-1">{"\u00daltimos 6 meses"}</p>
+              <p className="text-white font-bold text-xs sm:text-base">{"Evolu\u00e7\u00e3o de Vendas"}</p>
+              <p className="text-white/35 text-[10px] sm:text-sm mt-0.5 sm:mt-1 hidden sm:block">{"\u00daltimos 6 meses"}</p>
             </div>
-            <div className="flex bg-white/5 rounded-xl p-1 self-start sm:self-auto">
+            <div className="flex bg-white/5 rounded-lg sm:rounded-xl p-0.5 sm:p-1 self-start sm:self-auto">
               <button
                 onClick={() => setChartMode("faturamento")}
-                className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+                className={`px-2 sm:px-4 py-1 sm:py-2 rounded-md sm:rounded-lg text-[9px] sm:text-xs font-bold transition-all ${
                   chartMode === "faturamento"
                     ? "bg-blue-500/20 text-blue-400"
                     : "text-white/35 hover:text-white/60"
                 }`}
               >
-                R$ Faturamento
+                R$ Fat.
               </button>
               <button
                 onClick={() => setChartMode("carros")}
-                className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+                className={`px-2 sm:px-4 py-1 sm:py-2 rounded-md sm:rounded-lg text-[9px] sm:text-xs font-bold transition-all ${
                   chartMode === "carros"
                     ? "bg-purple-500/20 text-purple-400"
                     : "text-white/35 hover:text-white/60"
@@ -187,7 +187,7 @@ export default function DashboardCharts({
             </div>
           </div>
 
-          <div className="h-72 lg:h-[340px]">
+          <div className="h-40 sm:h-72 lg:h-[340px]">
             <ResponsiveContainer width="100%" height="100%">
               {chartMode === "faturamento" ? (
                 <AreaChart data={chart6m}>

@@ -144,9 +144,9 @@ export default function Dashboard() {
             <div key={i} className="h-32 rounded-2xl bg-white/5" />
           ))}
         </div>
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-          <div className="lg:col-span-4 h-[280px] sm:h-[460px] rounded-2xl bg-white/5" />
-          <div className="lg:col-span-8 h-[280px] sm:h-[460px] rounded-2xl bg-white/5" />
+        <div className="grid grid-cols-2 lg:grid-cols-12 gap-3 sm:gap-5">
+          <div className="col-span-1 lg:col-span-4 h-[200px] sm:h-[460px] rounded-2xl bg-white/5" />
+          <div className="col-span-1 lg:col-span-8 h-[200px] sm:h-[460px] rounded-2xl bg-white/5" />
         </div>
       </div>
     );
@@ -261,9 +261,9 @@ export default function Dashboard() {
 
       <Suspense
         fallback={
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-            <div className="lg:col-span-4 rounded-2xl bg-[hsl(230,18%,11%)] border border-white/5 h-[280px] sm:h-[460px] animate-pulse" />
-            <div className="lg:col-span-8 rounded-2xl bg-[hsl(230,18%,11%)] border border-white/5 h-[280px] sm:h-[460px] animate-pulse" />
+          <div className="grid grid-cols-2 lg:grid-cols-12 gap-3 sm:gap-5">
+            <div className="col-span-1 lg:col-span-4 rounded-2xl bg-[hsl(230,18%,11%)] border border-white/5 h-[200px] sm:h-[460px] animate-pulse" />
+            <div className="col-span-1 lg:col-span-8 rounded-2xl bg-[hsl(230,18%,11%)] border border-white/5 h-[200px] sm:h-[460px] animate-pulse" />
           </div>
         }
       >
@@ -405,20 +405,20 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 animate-fade-up">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 animate-fade-up">
         {[
-          { label: "Total de Ve\u00edculos", value: veiculos.length, icon: Car, color: "#3b82f6" },
+          { label: "Total Ve\u00edculos", value: veiculos.length, icon: Car, color: "#3b82f6" },
           { label: "Dispon\u00edveis", value: emEstoque, icon: Eye, color: "#10b981" },
           { label: "Reservados", value: reservados, icon: Clock, color: "#f59e0b" },
           { label: "Tempo M\u00e9dio", value: `${tempoMedio}d`, icon: BarChart3, color: "#8b5cf6" },
         ].map((item) => (
-          <div key={item.label} className="flex items-center gap-3 rounded-xl bg-[hsl(230,18%,11%)] border border-white/5 px-4 py-3.5 hover:border-white/10 transition-all">
-            <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: `${item.color}15` }}>
-              <item.icon className="h-4 w-4" style={{ color: item.color }} />
+          <div key={item.label} className="flex items-center gap-2 sm:gap-3 rounded-xl bg-[hsl(230,18%,11%)] border border-white/5 px-2.5 sm:px-4 py-2.5 sm:py-3.5 hover:border-white/10 transition-all">
+            <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: `${item.color}15` }}>
+              <item.icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" style={{ color: item.color }} />
             </div>
-            <div>
-              <p className="text-xl font-black text-white tabular-nums leading-none">{item.value}</p>
-              <p className="text-white/30 text-[11px] uppercase tracking-[0.16em] font-bold mt-1">{item.label}</p>
+            <div className="min-w-0">
+              <p className="text-base sm:text-xl font-black text-white tabular-nums leading-none">{item.value}</p>
+              <p className="text-white/30 text-[9px] sm:text-[11px] uppercase tracking-[0.14em] font-bold mt-0.5 sm:mt-1 truncate">{item.label}</p>
             </div>
           </div>
         ))}
