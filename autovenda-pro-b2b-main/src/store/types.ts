@@ -157,6 +157,16 @@ export interface NfeInfo {
   destinatario?: NfeDestinatario | null;
 }
 
+export interface VendaCusto {
+  custoAquisicao?: number;
+  custoCarroManual?: number;
+  usarCustoAutoReparo?: boolean;
+  comissaoVendedor?: number;
+  formaPagamento?: "avista" | "financiado";
+  carroNaTroca?: boolean;
+  valorTroca?: number;
+}
+
 export interface Venda {
   id: string;
   veiculoId: string;
@@ -164,6 +174,7 @@ export interface Venda {
   valor: number;
   data: string;
   nfe?: NfeInfo;
+  custo?: VendaCusto;
 }
 
 export interface ConsultaVeicular {

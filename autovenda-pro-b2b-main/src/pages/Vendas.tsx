@@ -1,11 +1,12 @@
 import { useMemo, useState } from "react";
-import { AlertCircle, Car, CheckCircle2, FileText, Receipt, Search, TrendingUp } from "lucide-react";
+import { AlertCircle, Car, CheckCircle2, FileText, Receipt, Search } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { NFeEmitirDialog } from "@/components/NFeEmitirDialog";
+import { VendaDetalhesDialog } from "@/components/VendaDetalhesDialog";
 import { useAuth } from "@/lib/auth";
 import { useAppStore } from "@/store/appStore";
 
@@ -33,9 +34,10 @@ function nfeBadge(status?: "pendente" | "autorizada" | "cancelada" | "erro") {
 
 export default function Vendas() {
   const { tenant, user } = useAuth();
-  const { vendas, veiculos, vendedores, tarefasPosVenda, refreshRemoteState } = useAppStore();
+  const { vendas, veiculos, vendedores, tarefasPosVenda, custos, refreshRemoteState } = useAppStore();
   const [search, setSearch] = useState("");
   const [selectedVendaId, setSelectedVendaId] = useState<string | null>(null);
+  const [detalhesVendaId, setDetalhesVendaId] = useState<string | null>(null);
   const nfeEnabled = tenant?.nfeEnabled ?? false;
   const nfeConfigured = tenant?.nfeConfigured ?? false;
   const canEmitNfe = nfeEnabled && nfeConfigured;
@@ -79,31 +81,19 @@ export default function Vendas() {
   }, [rows, search]);
 
   const totals = useMemo(() => {
-    const lucroTotal = rows.reduce((sum, row) => {
-      const custo = parseFloat(row.veiculo?.custo || "0") || 0;
-      return sum + row.venda.valor - custo;
-    }, 0);
-    const margemMedia = rows.length > 0
-      ? rows.reduce((sum, row) => {
-          const custo = parseFloat(row.veiculo?.custo || "0") || 0;
-          const margem = row.venda.valor > 0 ? ((row.venda.valor - custo) / row.venda.valor) * 100 : 0;
-          return sum + margem;
-        }, 0) / rows.length
-      : 0;
     const pendencias = rows.reduce((sum, row) => sum + row.pendencias, 0);
     const nfesAutorizadas = rows.filter((row) => row.venda.nfe?.status === "autorizada").length;
-
-    return {
-      lucroTotal,
-      margemMedia,
-      pendencias,
-      nfesAutorizadas,
-    };
+    return { pendencias, nfesAutorizadas };
   }, [rows]);
 
   const selectedRow = useMemo(
     () => rows.find((row) => row.venda.id === selectedVendaId) ?? null,
     [rows, selectedVendaId],
+  );
+
+  const detalhesRow = useMemo(
+    () => rows.find((row) => row.venda.id === detalhesVendaId) ?? null,
+    [rows, detalhesVendaId],
   );
 
   return (
@@ -129,31 +119,7 @@ export default function Vendas() {
         </div>
       </div>
 
-      <div className={`grid gap-3 md:grid-cols-2 ${nfeEnabled ? "xl:grid-cols-4" : "xl:grid-cols-3"}`}>
-        <Card className="border-white/10 bg-white/[0.03] text-white">
-          <CardContent className="flex items-center gap-3 p-5">
-            <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-3">
-              <TrendingUp className="h-5 w-5 text-emerald-300" />
-            </div>
-            <div>
-              <div className="text-xs uppercase tracking-[0.2em] text-white/35">Lucro Bruto</div>
-              <div className="mt-1 text-lg font-semibold">{currency(totals.lucroTotal)}</div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-white/10 bg-white/[0.03] text-white">
-          <CardContent className="flex items-center gap-3 p-5">
-            <div className="rounded-2xl border border-blue-500/20 bg-blue-500/10 p-3">
-              <Receipt className="h-5 w-5 text-blue-300" />
-            </div>
-            <div>
-              <div className="text-xs uppercase tracking-[0.2em] text-white/35">Margem Media</div>
-              <div className="mt-1 text-lg font-semibold">{totals.margemMedia.toFixed(1)}%</div>
-            </div>
-          </CardContent>
-        </Card>
-
+      <div className={`grid gap-3 ${nfeEnabled ? "md:grid-cols-2" : "md:grid-cols-1 max-w-sm"}`}>
         <Card className="border-white/10 bg-white/[0.03] text-white">
           <CardContent className="flex items-center gap-3 p-5">
             <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-3">
@@ -220,7 +186,11 @@ export default function Vendas() {
       ) : (
         <div className="grid gap-4">
           {filteredRows.map((row) => (
-            <Card key={row.venda.id} className="border-white/10 bg-white/[0.03] text-white">
+            <Card
+              key={row.venda.id}
+              className="border-white/10 bg-white/[0.03] text-white cursor-pointer hover:bg-white/[0.05] transition-colors"
+              onClick={() => setDetalhesVendaId(row.venda.id)}
+            >
               <CardHeader className="gap-4 pb-3 lg:flex-row lg:items-start lg:justify-between">
                 <div className="space-y-2">
                   <div className="flex flex-wrap items-center gap-2">
@@ -234,7 +204,7 @@ export default function Vendas() {
                   </div>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2" onClick={(e) => e.stopPropagation()}>
                   {canEmitNfe ? (
                     <Button
                       type="button"
@@ -272,9 +242,18 @@ export default function Vendas() {
                   </div>
                 </div>
                 <div>
-                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">Chassi comercial</div>
-                  <div className="mt-1 text-sm text-white/70">
-                    {row.veiculo?.marca ? `${row.veiculo.marca} ${row.veiculo.modelo}` : row.veiculo?.modelo ?? "Veiculo"}
+                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">Lucro</div>
+                  <div className="mt-1 text-sm font-medium">
+                    {(() => {
+                      const c = row.venda.custo;
+                      if (!c || c.custoAquisicao === undefined) return <span className="text-white/30 italic text-xs">Clique para calcular</span>;
+                      const custoAutoReparo = c.usarCustoAutoReparo
+                        ? custos.filter((x) => x.veiculoId === row.veiculo?.id).reduce((a, x) => a + x.valor, 0)
+                        : 0;
+                      const custoCarro = c.usarCustoAutoReparo ? custoAutoReparo : (c.custoCarroManual ?? 0);
+                      const lucro = row.venda.valor - (c.custoAquisicao ?? 0) - custoCarro - (c.comissaoVendedor ?? 0) - (c.carroNaTroca ? (c.valorTroca ?? 0) : 0);
+                      return <span className={lucro >= 0 ? "text-emerald-400 font-semibold" : "text-red-400 font-semibold"}>{currency(lucro)}</span>;
+                    })()}
                   </div>
                 </div>
               </CardContent>
@@ -294,6 +273,18 @@ export default function Vendas() {
           onNfeEmitida={() => {
             void refreshRemoteState();
           }}
+        />
+      ) : null}
+
+      {detalhesRow ? (
+        <VendaDetalhesDialog
+          open={!!detalhesRow}
+          onOpenChange={(open) => {
+            if (!open) setDetalhesVendaId(null);
+          }}
+          venda={detalhesRow.venda}
+          veiculo={detalhesRow.veiculo}
+          vendedor={detalhesRow.vendedor}
         />
       ) : null}
     </div>

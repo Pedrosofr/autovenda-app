@@ -5,6 +5,7 @@ import type {
   Lead,
   Vendedor,
   Venda,
+  VendaCusto,
   ConsultaVeicular,
   TarefaPosVenda,
   CustoReparo,
@@ -47,6 +48,7 @@ interface AppStore extends AppState {
   removeLead: (id: string) => void;
   clearDeletedLeads: () => void;
   addVenda: (veiculoId: string, vendedorId: string, valor: number) => void;
+  updateVendaCusto: (vendaId: string, custo: VendaCusto) => void;
   addConsulta: (c: Omit<ConsultaVeicular, "id">) => void;
   addTarefaPosVenda: (t: Omit<TarefaPosVenda, "id" | "criadoEm" | "status">) => void;
   updateTarefaPosVenda: (id: string, data: Partial<TarefaPosVenda>) => void;
@@ -65,12 +67,6 @@ interface AppStore extends AppState {
 
 const AppContext = createContext<AppStore | null>(null);
 const EMPTY_STATE = createEmptyAppState();
-const DEFAULT_POST_SALE_TASKS = [
-  { titulo: "Entregar documento do veiculo", categoria: "documento" as const },
-  { titulo: "Transferir propriedade (DUT)", categoria: "documento" as const },
-  { titulo: "Entregar chave reserva", categoria: "entrega" as const },
-  { titulo: "Entregar veiculo ao cliente", categoria: "entrega" as const },
-];
 
 function serialize(value: unknown) {
   return JSON.stringify(value);
@@ -304,22 +300,10 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
           : x,
       ),
     );
-    setTarefasPosVenda((prev) => {
-      if (prev.some((tarefa) => tarefa.vendaId === vendaId)) return prev;
+  }, []);
 
-      const criadoEm = new Date().toISOString();
-      const defaults = DEFAULT_POST_SALE_TASKS.map((tarefa) => ({
-        id: crypto.randomUUID(),
-        vendaId,
-        veiculoId,
-        titulo: tarefa.titulo,
-        categoria: tarefa.categoria,
-        status: "pendente" as const,
-        criadoEm,
-      }));
-
-      return [...defaults, ...prev];
-    });
+  const updateVendaCusto = useCallback((vendaId: string, custo: VendaCusto) => {
+    setVendas((prev) => prev.map((v) => (v.id === vendaId ? { ...v, custo } : v)));
   }, []);
 
   const addConsulta = useCallback((c: Omit<ConsultaVeicular, "id">) => {
@@ -447,6 +431,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       removeLead,
       clearDeletedLeads,
       addVenda,
+      updateVendaCusto,
       addConsulta,
       addTarefaPosVenda,
       updateTarefaPosVenda,
@@ -490,6 +475,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       updateMemoriaLoja,
       updateTarefaPosVenda,
       updateVeiculo,
+      updateVendaCusto,
       veiculos,
       vendedores,
       vendas,
