@@ -903,6 +903,10 @@ export function listStores() {
       t.max_users,
       t.trial_ends_at,
       t.nfe_enabled,
+      case
+        when t.nfe_config_json is not null and trim(t.nfe_config_json) <> '' then 1
+        else 0
+      end as nfe_configured,
       (
         select count(*)
         from memberships m
@@ -1229,12 +1233,34 @@ export interface NfeConfigData {
   email?: string;
 }
 
+export interface StoreNfeSettings {
+  enabled: boolean;
+  configured: boolean;
+  config: NfeConfigData | null;
+}
+
 export function getNfeConfig(tenantId: number): NfeConfigData | null {
   const row = getDatabase()
     .prepare("select nfe_config_json from tenants where id = ?")
     .get(tenantId) as { nfe_config_json: string | null } | undefined;
   if (!row?.nfe_config_json) return null;
   return parseJson<NfeConfigData | null>(row.nfe_config_json, null);
+}
+
+export function getStoreNfeSettings(storeId: number): StoreNfeSettings {
+  const row = getDatabase()
+    .prepare("select nfe_enabled, nfe_config_json from tenants where id = ?")
+    .get(storeId) as { nfe_enabled: number; nfe_config_json: string | null } | undefined;
+
+  if (!row) {
+    throw new Error("Loja nao encontrada.");
+  }
+
+  return {
+    enabled: !!row.nfe_enabled,
+    configured: !!row.nfe_config_json?.trim(),
+    config: row.nfe_config_json ? parseJson<NfeConfigData | null>(row.nfe_config_json, null) : null,
+  };
 }
 
 export function updateNfeConfig(actor: AuthenticatedSession, config: NfeConfigData) {
@@ -1248,6 +1274,26 @@ export function updateNfeConfig(actor: AuthenticatedSession, config: NfeConfigDa
     tenantId: actor.tenantId,
     actorUserId: actor.userId,
     action: "tenant.nfe_config_updated",
+  });
+}
+
+export function updateStoreNfeConfig(storeId: number, config: NfeConfigData, actorUserId?: number | null) {
+  const db = getDatabase();
+  const tenant = db.prepare("select id from tenants where id = ?").get(storeId) as { id: number } | undefined;
+  if (!tenant) {
+    throw new Error("Loja nao encontrada.");
+  }
+
+  db.prepare("update tenants set nfe_config_json = ?, updated_at = ? where id = ?")
+    .run(JSON.stringify(config), nowIso(), storeId);
+
+  writeAuditLog(db, {
+    tenantId: storeId,
+    actorUserId: actorUserId ?? null,
+    action: "tenant.nfe_config_updated",
+    payload: {
+      actorScope: "platform_admin",
+    },
   });
 }
 

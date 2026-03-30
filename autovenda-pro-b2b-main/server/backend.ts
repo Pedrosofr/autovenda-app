@@ -22,8 +22,9 @@ import {
   updateTenantAppState,
   updateMemberPermissions,
   getNfeConfig,
-  updateNfeConfig,
+  getStoreNfeSettings,
   toggleNfeEnabled,
+  updateStoreNfeConfig,
   updateVendaNfe,
   type AuthenticatedSession,
   type TenantStatus,
@@ -873,6 +874,55 @@ function resolveFocusAssetUrl(baseUrl: string, value: unknown) {
   }
 }
 
+async function handlePlatformStoreNfeConfig(request: RequestShape, headers: Record<string, string>): Promise<ResponseShape> {
+  const result = requirePlatformAdmin(headers);
+  if ("error" in result) return result.error;
+
+  const match = request.path.match(/^\/api\/platform\/stores\/(\d+)\/nfe-config$/);
+  const storeId = Number(match?.[1] ?? 0);
+  if (!storeId) {
+    return json(400, { error: "Loja invalida." });
+  }
+
+  if (request.method === "GET") {
+    try {
+      const settings = getStoreNfeSettings(storeId);
+      return json(200, {
+        enabled: settings.enabled,
+        configured: settings.configured,
+        config: buildPublicNfeConfig(settings.config),
+      });
+    } catch (error) {
+      return json(404, { error: error instanceof Error ? error.message : "Loja nao encontrada." });
+    }
+  }
+
+  if (request.method === "PUT") {
+    try {
+      const currentSettings = getStoreNfeSettings(storeId);
+      const body = (request.body ?? {}) as Partial<NfeConfigData>;
+      const nextConfig = normalizeNfeConfigInput(body, currentSettings.config);
+      const validationError = validateNfeConfig(nextConfig);
+      if (validationError) {
+        return json(400, { error: validationError });
+      }
+
+      updateStoreNfeConfig(storeId, nextConfig, result.session.userId);
+      const nextSettings = getStoreNfeSettings(storeId);
+      return json(200, {
+        success: true,
+        enabled: nextSettings.enabled,
+        configured: nextSettings.configured,
+        config: buildPublicNfeConfig(nextSettings.config),
+      });
+    } catch (error) {
+      return json(400, { error: error instanceof Error ? error.message : "Nao foi possivel salvar a configuracao NF-e." });
+    }
+  }
+
+  return json(405, { error: "Metodo nao permitido." }, { Allow: "GET, PUT" });
+}
+
 function buildNfeDescription(veiculo: Record<string, unknown>) {
   const descricao = [
     String(veiculo.modelo ?? "").trim(),
@@ -897,6 +947,17 @@ function getVendaContext(session: AuthenticatedSession, vendaId: string) {
     return { error: json(404, { error: "Veiculo da venda nao encontrado." }) };
   }
 
+  return { venda, veiculo };
+}
+
+function getVendaContextByNfeRef(session: AuthenticatedSession, ref: string) {
+  const state = getTenantAppState(session);
+  const venda = state.vendas.find((item) => String(asRecord(item.nfe)?.ref ?? "") === ref);
+  if (!venda) {
+    return { error: json(404, { error: "NF-e nao encontrada para esta loja." }) };
+  }
+
+  const veiculo = state.veiculos.find((item) => item.id === venda.veiculoId) ?? null;
   return { venda, veiculo };
 }
 
@@ -933,6 +994,33 @@ function normalizeNfeConfigInput(body: Partial<NfeConfigData>, currentConfig: Nf
     telefone: cleanCnpjCpf(String(body.telefone ?? "")).slice(0, 14) || undefined,
     email: String(body.email ?? "").trim() || undefined,
   };
+}
+
+function validateNfeConfig(config: NfeConfigData) {
+  const required: (keyof NfeConfigData)[] = [
+    "focusApiKey", "ambiente", "cnpj", "razaoSocial",
+    "inscricaoEstadual", "regimeTributario",
+    "logradouro", "numero", "bairro", "municipio", "codigoMunicipio", "uf", "cep",
+  ];
+
+  for (const field of required) {
+    if (!config[field]) {
+      return `Campo obrigatorio: ${field}`;
+    }
+  }
+
+  const cnpjClean = cleanCnpjCpf(config.cnpj ?? "");
+  if (cnpjClean.length !== 14) {
+    return "CNPJ invalido. Informe 14 digitos.";
+  }
+  if (config.codigoMunicipio.length !== 7) {
+    return "Codigo do municipio invalido. Informe os 7 digitos do IBGE.";
+  }
+  if (config.cep.length !== 8) {
+    return "CEP invalido. Informe 8 digitos.";
+  }
+
+  return null;
 }
 
 function buildNfeInfoFromFocus(input: {
@@ -987,6 +1075,179 @@ function buildNfeInfoFromFocus(input: {
   };
 }
 
+type TenantNfeContext = {
+  venda: Record<string, unknown>;
+  veiculo: Record<string, unknown> | null;
+  vendaId: string;
+  ref: string;
+  nfe: Record<string, unknown>;
+};
+
+function getTenantNfeContext(session: AuthenticatedSession, searchParams: URLSearchParams) {
+  const vendaId = (searchParams.get("vendaId") ?? "").trim();
+  const requestedRef = (searchParams.get("ref") ?? "").trim();
+
+  const contextResult = vendaId
+    ? getVendaContext(session, vendaId)
+    : requestedRef
+      ? getVendaContextByNfeRef(session, requestedRef)
+      : { error: json(400, { error: "Informe o vendaId ou ref da NF-e." }) };
+
+  if ("error" in contextResult) {
+    return contextResult;
+  }
+
+  const nfe = asRecord(contextResult.venda.nfe);
+  const ref = requestedRef || String(nfe?.ref ?? "");
+
+  if (!nfe || !ref) {
+    return { error: json(404, { error: "NF-e nao encontrada para esta venda." }) };
+  }
+
+  return {
+    venda: contextResult.venda as Record<string, unknown>,
+    veiculo: contextResult.veiculo as Record<string, unknown> | null,
+    vendaId: String(contextResult.venda.id ?? vendaId),
+    ref,
+    nfe,
+  } satisfies TenantNfeContext;
+}
+
+function buildNfeAssetFileName(ref: string, extension: "pdf" | "xml") {
+  const safeRef = ref.replace(/[^a-z0-9_-]+/gi, "-");
+  return `NF-e-${safeRef}.${extension}`;
+}
+
+async function fetchNfeStatusFromProvider(config: NfeConfigData, ref: string) {
+  const focusRes = await fetch(
+    `${focusNfeBaseUrl(config.ambiente)}/nfe/${encodeURIComponent(ref)}?completa=1`,
+    { headers: { Authorization: focusNfeAuth(config.focusApiKey) } },
+  );
+  const focusBody = await focusRes.json().catch(() => ({})) as Record<string, unknown>;
+
+  if (!focusRes.ok && focusRes.status !== 404) {
+    return { error: json(focusRes.status, { error: extractFocusError(focusBody) }) };
+  }
+  if (focusRes.status === 404) {
+    return { error: json(404, { error: "NF-e nao encontrada na Focus." }) };
+  }
+
+  return { focusBody, httpStatus: focusRes.status };
+}
+
+async function ensureNfeAssetUrl(
+  session: AuthenticatedSession,
+  config: NfeConfigData,
+  tenantNfe: TenantNfeContext,
+  assetType: "danfe" | "xml",
+) {
+  const existingUrl = String(
+    assetType === "danfe" ? tenantNfe.nfe.danfeUrl ?? "" : tenantNfe.nfe.xmlUrl ?? "",
+  ).trim();
+  if (existingUrl) {
+    return { assetUrl: existingUrl, nfe: tenantNfe.nfe };
+  }
+
+  const statusResult = await fetchNfeStatusFromProvider(config, tenantNfe.ref);
+  if ("error" in statusResult) {
+    return statusResult;
+  }
+
+  const syncedNfe = buildNfeInfoFromFocus({
+    config,
+    ref: tenantNfe.ref,
+    focusBody: statusResult.focusBody,
+    httpStatus: statusResult.httpStatus,
+    valorTotal: Number(tenantNfe.nfe.valorTotal ?? tenantNfe.venda.valor ?? 0),
+    descricaoProduto: String(
+      tenantNfe.nfe.descricaoProduto
+      ?? (tenantNfe.veiculo ? buildNfeDescription(tenantNfe.veiculo) : "VEICULO USADO"),
+    ),
+    formaPagamento: String(tenantNfe.nfe.formaPagamento ?? "01"),
+    destinatario: asRecord(tenantNfe.nfe.destinatario) ?? {},
+    existingNfe: tenantNfe.nfe,
+  });
+  updateVendaNfe(session.tenantId!, tenantNfe.vendaId, syncedNfe);
+
+  const assetUrl = String(assetType === "danfe" ? syncedNfe.danfeUrl ?? "" : syncedNfe.xmlUrl ?? "").trim();
+  if (!assetUrl) {
+    return {
+      error: json(404, {
+        error: assetType === "danfe" ? "DANFE indisponivel para esta NF-e." : "XML indisponivel para esta NF-e.",
+      }),
+    };
+  }
+
+  return { assetUrl, nfe: syncedNfe };
+}
+
+async function handleNfeAsset(
+  request: RequestShape,
+  headers: Record<string, string>,
+  assetType: "danfe" | "xml",
+): Promise<ResponseShape> {
+  if (request.method !== "GET") {
+    return json(405, { error: "Metodo nao permitido." }, { Allow: "GET" });
+  }
+
+  const sessionResult = requireSession(headers);
+  if ("error" in sessionResult) return sessionResult.error;
+  const { session } = sessionResult;
+
+  if (!session.tenantId || !session.nfeEnabled) {
+    return json(403, { error: "NF-e nao habilitado para esta loja." });
+  }
+
+  const config = getNfeConfig(session.tenantId);
+  if (!config) {
+    return json(400, { error: "NF-e nao configurado." });
+  }
+
+  const url = new URL(`http://localhost${request.path}`);
+  const tenantNfe = getTenantNfeContext(session, url.searchParams);
+  if ("error" in tenantNfe) {
+    return tenantNfe.error;
+  }
+
+  const assetResult = await ensureNfeAssetUrl(session, config, tenantNfe, assetType);
+  if ("error" in assetResult) {
+    return assetResult.error;
+  }
+
+  const upstream = await fetch(assetResult.assetUrl, {
+    headers: {
+      Authorization: focusNfeAuth(config.focusApiKey),
+    },
+  });
+
+  if (!upstream.ok) {
+    if (upstream.status === 404) {
+      return json(404, {
+        error: assetType === "danfe" ? "DANFE nao encontrado." : "XML nao encontrado.",
+      });
+    }
+
+    return json(upstream.status, {
+      error: assetType === "danfe" ? "Nao foi possivel carregar o DANFE." : "Nao foi possivel carregar o XML.",
+    });
+  }
+
+  const buffer = Buffer.from(await upstream.arrayBuffer());
+  const isDanfe = assetType === "danfe";
+  const defaultContentType = isDanfe ? "application/pdf" : "application/xml";
+  const requestedDownload = (url.searchParams.get("download") ?? "").trim() === "1";
+
+  return json(200, {
+    success: true,
+    ref: tenantNfe.ref,
+    vendaId: tenantNfe.vendaId,
+    fileName: buildNfeAssetFileName(tenantNfe.ref, isDanfe ? "pdf" : "xml"),
+    contentType: upstream.headers.get("content-type") ?? defaultContentType,
+    contentBase64: buffer.toString("base64"),
+    inline: isDanfe && !requestedDownload,
+  });
+}
+
 async function handleNfeConfig(request: RequestShape, headers: Record<string, string>): Promise<ResponseShape> {
   const sessionResult = requireSession(headers);
   if ("error" in sessionResult) return sessionResult.error;
@@ -997,51 +1258,15 @@ async function handleNfeConfig(request: RequestShape, headers: Record<string, st
   }
 
   if (request.method === "GET") {
-    if (session.role !== "owner") {
-      return json(403, { error: "Somente o owner pode visualizar a configuracao NF-e." });
-    }
-
-    const config = getNfeConfig(session.tenantId);
     return json(200, {
-      config: buildPublicNfeConfig(config),
+      config: null,
       enabled: session.nfeEnabled,
       configured: session.nfeConfigured,
     });
   }
 
   if (request.method === "PUT") {
-    if (session.role !== "owner") {
-      return json(403, { error: "Somente o owner pode configurar NF-e." });
-    }
-    const currentConfig = getNfeConfig(session.tenantId);
-    const body = (request.body ?? {}) as Partial<NfeConfigData>;
-    const nextConfig = normalizeNfeConfigInput(body, currentConfig);
-    const required: (keyof NfeConfigData)[] = [
-      "focusApiKey", "ambiente", "cnpj", "razaoSocial",
-      "inscricaoEstadual", "regimeTributario",
-      "logradouro", "numero", "bairro", "municipio", "codigoMunicipio", "uf", "cep",
-    ];
-    for (const field of required) {
-      if (!nextConfig[field]) {
-        return json(400, { error: `Campo obrigatorio: ${field}` });
-      }
-    }
-    const cnpjClean = cleanCnpjCpf(nextConfig.cnpj ?? "");
-    if (cnpjClean.length !== 14) {
-      return json(400, { error: "CNPJ invalido. Informe 14 digitos." });
-    }
-    if (nextConfig.codigoMunicipio.length !== 7) {
-      return json(400, { error: "Codigo do municipio invalido. Informe os 7 digitos do IBGE." });
-    }
-    if (nextConfig.cep.length !== 8) {
-      return json(400, { error: "CEP invalido. Informe 8 digitos." });
-    }
-    try {
-      updateNfeConfig(session, nextConfig);
-      return json(200, { success: true });
-    } catch (error) {
-      return json(400, { error: error instanceof Error ? error.message : "Erro ao salvar configuracao." });
-    }
+    return json(403, { error: "A configuracao NF-e e gerenciada apenas pela plataforma." });
   }
 
   return json(405, { error: "Metodo nao permitido." }, { Allow: "GET, PUT" });
@@ -1470,6 +1695,10 @@ export async function handleBackendRequest(request: RequestShape): Promise<Respo
       return await handlePlatformStoreTeam(request, headers);
     }
 
+    if (/^\/api\/platform\/stores\/\d+\/nfe-config$/.test(request.path)) {
+      return await handlePlatformStoreNfeConfig(request, headers);
+    }
+
     if (/^\/api\/platform\/stores\/\d+$/.test(request.path)) {
       return await handlePlatformStoreUpdate(request, headers);
     }
@@ -1520,6 +1749,14 @@ export async function handleBackendRequest(request: RequestShape): Promise<Respo
 
     if (request.path === "/api/nfe/emitir") {
       return await handleNfeEmitir(request, headers);
+    }
+
+    if (request.path.startsWith("/api/nfe/danfe")) {
+      return await handleNfeAsset(request, headers, "danfe");
+    }
+
+    if (request.path.startsWith("/api/nfe/xml")) {
+      return await handleNfeAsset(request, headers, "xml");
     }
 
     if (request.path.startsWith("/api/nfe/status")) {

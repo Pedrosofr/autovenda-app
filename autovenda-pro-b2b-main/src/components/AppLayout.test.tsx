@@ -19,6 +19,7 @@ const authMocks = vi.hoisted(() => ({
     status: "trial" as const,
     trialEndsAt: new Date().toISOString(),
     planCode: "starter",
+    nfeEnabled: true,
     daysRemaining: 6,
   },
   permissions: {
@@ -37,6 +38,7 @@ import AppLayout from "@/components/AppLayout";
 describe("AppLayout", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    authMocks.tenant.nfeEnabled = true;
   });
 
   it("shows team management for owners and hides the platform console", () => {
@@ -50,7 +52,21 @@ describe("AppLayout", () => {
 
     expect(screen.getByText("Vendas")).toBeInTheDocument();
     expect(screen.getByText("Equipe")).toBeInTheDocument();
-    expect(screen.getByText("NF-e")).toBeInTheDocument();
+    expect(screen.getByText("Notas fiscais")).toBeInTheDocument();
     expect(screen.queryByText("Lojas")).not.toBeInTheDocument();
+  });
+
+  it("hides the invoice addon entry when NF-e is disabled for the store", () => {
+    authMocks.tenant.nfeEnabled = false;
+
+    render(
+      <MemoryRouter initialEntries={["/dashboard"]}>
+        <AppLayout>
+          <div>Painel</div>
+        </AppLayout>
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByText("Notas fiscais")).not.toBeInTheDocument();
   });
 });

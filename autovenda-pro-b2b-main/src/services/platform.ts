@@ -7,6 +7,7 @@ export interface PlatformStoreSummary {
   max_users: number;
   trial_ends_at: string;
   nfe_enabled: number;
+  nfe_configured: number;
   users_count: number;
   owner_name: string | null;
   owner_email: string | null;
@@ -20,6 +21,34 @@ export interface PlatformStoreMember {
   ativo: number;
   meta_mensal: number | null;
   criado_em: string;
+}
+
+export interface PlatformStoreNfeConfig {
+  focusApiKey: string;
+  focusApiKeyMasked: string;
+  hasSavedApiKey: boolean;
+  ambiente: "homologacao" | "producao";
+  cnpj: string;
+  razaoSocial: string;
+  nomeFantasia?: string;
+  inscricaoEstadual: string;
+  regimeTributario: "1" | "2" | "3";
+  logradouro: string;
+  numero: string;
+  complemento?: string;
+  bairro: string;
+  municipio: string;
+  codigoMunicipio: string;
+  uf: string;
+  cep: string;
+  telefone?: string;
+  email?: string;
+}
+
+export interface PlatformStoreNfeSettings {
+  enabled: boolean;
+  configured: boolean;
+  config: PlatformStoreNfeConfig | null;
 }
 
 async function request<T>(path: string, init?: RequestInit) {
@@ -89,6 +118,22 @@ export async function createPlatformStoreUser(
 ) {
   return request<{ success: true; members: PlatformStoreMember[] }>(`/api/platform/stores/${storeId}/team`, {
     method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function fetchPlatformStoreNfeConfig(storeId: number) {
+  return request<PlatformStoreNfeSettings>(`/api/platform/stores/${storeId}/nfe-config`, {
+    method: "GET",
+  });
+}
+
+export async function updatePlatformStoreNfeConfig(
+  storeId: number,
+  payload: Omit<PlatformStoreNfeConfig, "focusApiKeyMasked" | "hasSavedApiKey">,
+) {
+  return request<{ success: true } & PlatformStoreNfeSettings>(`/api/platform/stores/${storeId}/nfe-config`, {
+    method: "PUT",
     body: JSON.stringify(payload),
   });
 }

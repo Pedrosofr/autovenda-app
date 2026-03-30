@@ -19,15 +19,15 @@ function currency(value: number) {
 function nfeBadge(status?: "pendente" | "autorizada" | "cancelada" | "erro") {
   switch (status) {
     case "autorizada":
-      return <Badge className="border-emerald-500/20 bg-emerald-500/10 text-emerald-300">NF-e autorizada</Badge>;
+      return <Badge className="border-emerald-500/20 bg-emerald-500/10 text-emerald-300">Nota autorizada</Badge>;
     case "cancelada":
-      return <Badge className="border-slate-500/20 bg-slate-500/10 text-slate-300">NF-e cancelada</Badge>;
+      return <Badge className="border-slate-500/20 bg-slate-500/10 text-slate-300">Nota cancelada</Badge>;
     case "erro":
-      return <Badge className="border-red-500/20 bg-red-500/10 text-red-300">NF-e com erro</Badge>;
+      return <Badge className="border-red-500/20 bg-red-500/10 text-red-300">Nota com erro</Badge>;
     case "pendente":
-      return <Badge className="border-amber-500/20 bg-amber-500/10 text-amber-300">NF-e pendente</Badge>;
+      return <Badge className="border-amber-500/20 bg-amber-500/10 text-amber-300">Em emissao</Badge>;
     default:
-      return <Badge className="border-white/10 bg-white/5 text-white/60">Sem NF-e</Badge>;
+      return <Badge className="border-white/10 bg-white/5 text-white/60">Sem nota emitida</Badge>;
   }
 }
 
@@ -106,7 +106,7 @@ export default function Vendas() {
             Vendas
           </h1>
           <p className="mt-1 text-sm text-white/45">
-            Acompanhe faturamento, status de NF-e e pendencias de cada veiculo vendido.
+            Acompanhe faturamento, status das notas fiscais e pendencias de cada veiculo vendido.
           </p>
         </div>
         <div className="relative w-full max-w-sm">
@@ -120,7 +120,7 @@ export default function Vendas() {
         </div>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className={`grid gap-3 md:grid-cols-2 ${nfeEnabled ? "xl:grid-cols-4" : "xl:grid-cols-3"}`}>
         <Card className="border-white/10 bg-white/[0.03] text-white">
           <CardContent className="flex items-center gap-3 p-5">
             <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-3">
@@ -159,34 +159,36 @@ export default function Vendas() {
           </CardContent>
         </Card>
 
-        <Card className="border-white/10 bg-white/[0.03] text-white">
-          <CardContent className="flex items-center gap-3 p-5">
-            <div className="rounded-2xl border border-violet-500/20 bg-violet-500/10 p-3">
-              <CheckCircle2 className="h-5 w-5 text-violet-300" />
-            </div>
-            <div>
-              <div className="text-xs uppercase tracking-[0.2em] text-white/35">NF-e autorizadas</div>
-              <div className="mt-1 text-lg font-semibold">{totals.nfesAutorizadas}</div>
-            </div>
-          </CardContent>
-        </Card>
+        {nfeEnabled && (
+          <Card className="border-white/10 bg-white/[0.03] text-white">
+            <CardContent className="flex items-center gap-3 p-5">
+              <div className="rounded-2xl border border-violet-500/20 bg-violet-500/10 p-3">
+                <CheckCircle2 className="h-5 w-5 text-violet-300" />
+              </div>
+              <div>
+                <div className="text-xs uppercase tracking-[0.2em] text-white/35">NF-e autorizadas</div>
+                <div className="mt-1 text-lg font-semibold">{totals.nfesAutorizadas}</div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {nfeEnabled && !nfeConfigured && (
         <Card className="border-amber-500/20 bg-amber-500/5 text-white">
           <CardContent className="flex flex-col gap-3 p-5 md:flex-row md:items-center md:justify-between">
             <div>
-              <div className="text-sm font-semibold text-white">Finalize a configuracao da NF-e</div>
+              <div className="text-sm font-semibold text-white">Complete os dados fiscais da loja</div>
               <p className="mt-1 text-sm text-amber-100/80">
-                O modulo ja esta ativo, mas ainda faltam os dados fiscais da loja para emitir pela Focus.
+                O modulo ja esta ativo, mas ainda faltam os dados fiscais da loja para liberar emissao, status e arquivos da nota.
               </p>
             </div>
             {user?.role === "owner" ? (
               <Button asChild className="bg-amber-500 text-black hover:bg-amber-400">
-                <Link to="/nfe">Configurar NF-e</Link>
+                <Link to="/nfe">Completar dados fiscais</Link>
               </Button>
             ) : (
-              <Badge className="border-white/10 bg-white/5 text-white/70">Aguardando configuracao do owner</Badge>
+              <Badge className="border-white/10 bg-white/5 text-white/70">Aguardando dados fiscais do owner</Badge>
             )}
           </CardContent>
         </Card>
@@ -214,7 +216,7 @@ export default function Vendas() {
                 <div className="space-y-2">
                   <div className="flex flex-wrap items-center gap-2">
                     <CardTitle className="text-lg">{row.veiculo?.modelo ?? "Veiculo vendido"}</CardTitle>
-                    {nfeBadge(row.venda.nfe?.status)}
+                    {nfeEnabled ? nfeBadge(row.venda.nfe?.status) : null}
                   </div>
                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-white/50">
                     <span>{row.veiculo?.ano ?? "Ano nao informado"}</span>
@@ -232,22 +234,20 @@ export default function Vendas() {
                       onClick={() => setSelectedVendaId(row.venda.id)}
                     >
                       <FileText className="mr-2 h-4 w-4" />
-                      {row.venda.nfe ? "Ver NF-e" : "Emitir NF-e"}
+                      {row.venda.nfe ? "Ver nota" : "Emitir nota"}
                     </Button>
                   ) : nfeEnabled ? (
                     user?.role === "owner" ? (
                       <Button asChild variant="outline" className="border-amber-500/20 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20">
                         <Link to="/nfe">
                           <FileText className="mr-2 h-4 w-4" />
-                          Configurar NF-e
+                          Completar dados fiscais
                         </Link>
                       </Button>
                     ) : (
-                      <Badge className="border-white/10 bg-white/5 text-white/60">NF-e aguardando configuracao</Badge>
+                      <Badge className="border-white/10 bg-white/5 text-white/60">Notas fiscais aguardando liberacao</Badge>
                     )
-                  ) : (
-                    <Badge className="border-white/10 bg-white/5 text-white/60">NF-e desabilitado</Badge>
-                  )}
+                  ) : null}
                 </div>
               </CardHeader>
 

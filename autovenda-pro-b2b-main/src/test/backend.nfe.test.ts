@@ -12,6 +12,7 @@ import {
   getTenantAppState,
   resetDatabaseConnectionForTests,
   toggleNfeEnabled,
+  listStores,
   updateNfeConfig,
   updateTenantAppState,
   type AuthenticatedSession,
@@ -44,6 +45,36 @@ function mockFocusResponse(status: number, body: Record<string, unknown>) {
     ok: status >= 200 && status < 300,
     async json() {
       return body;
+    },
+  } as Response;
+}
+
+function mockAssetResponse(
+  status: number,
+  body: string,
+  headers: Record<string, string> = {},
+) {
+  const buffer = Buffer.from(body, "utf-8");
+  const normalizedHeaders = Object.fromEntries(
+    Object.entries(headers).map(([key, value]) => [key.toLowerCase(), value]),
+  );
+
+  return {
+    status,
+    ok: status >= 200 && status < 300,
+    headers: {
+      get(name: string) {
+        return normalizedHeaders[name.toLowerCase()] ?? null;
+      },
+    },
+    async arrayBuffer() {
+      return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+    },
+    async json() {
+      return {};
+    },
+    async text() {
+      return buffer.toString("utf-8");
     },
   } as Response;
 }
@@ -89,6 +120,18 @@ function createTenantContext() {
     tenantId,
     ownerSession: auth.session,
     ownerCookie: auth.cookieHeader,
+  };
+}
+
+function createPlatformAdminContext() {
+  const auth = authenticateUser("admin@plataforma.local", "123456");
+  if (!auth) {
+    throw new Error("Falha ao autenticar admin da plataforma.");
+  }
+
+  return {
+    platformSession: auth.session,
+    platformCookie: auth.cookieHeader,
   };
 }
 
@@ -147,19 +190,86 @@ describe("NF-e backend", () => {
     rmSync(tempDir, { recursive: true, force: true });
   });
 
-  it("protege a leitura da configuracao e mascara a chave da Focus para o owner", async () => {
+  it("permite ao admin da plataforma ver e salvar a configuracao privada de NF-e por loja", async () => {
+    const { ownerSession, tenantId } = createTenantContext();
+    const { platformCookie } = createPlatformAdminContext();
+
+    const initialStores = listStores();
+    expect(initialStores[0]?.nfe_enabled).toBe(0);
+    expect(initialStores[0]?.nfe_configured).toBe(0);
+
+    const initialResponse = await apiRequest({
+      cookie: platformCookie,
+      method: "GET",
+      path: `/api/platform/stores/${tenantId}/nfe-config`,
+    });
+    const initialBody = initialResponse.body as {
+      enabled: boolean;
+      configured: boolean;
+      config: null;
+    };
+
+    expect(initialResponse.status).toBe(200);
+    expect(initialBody.enabled).toBe(false);
+    expect(initialBody.configured).toBe(false);
+    expect(initialBody.config).toBeNull();
+
+    const saveResponse = await apiRequest({
+      cookie: platformCookie,
+      method: "PUT",
+      path: `/api/platform/stores/${tenantId}/nfe-config`,
+      body: VALID_CONFIG,
+    });
+    expect(saveResponse.status).toBe(200);
+
+    const toggleResponse = await apiRequest({
+      cookie: platformCookie,
+      method: "PATCH",
+      path: `/api/platform/stores/${tenantId}`,
+      body: {
+        nfeEnabled: true,
+      },
+    });
+    expect(toggleResponse.status).toBe(200);
+
+    const response = await apiRequest({
+      cookie: platformCookie,
+      method: "GET",
+      path: `/api/platform/stores/${tenantId}/nfe-config`,
+    });
+    const body = response.body as {
+      enabled: boolean;
+      configured: boolean;
+      config: {
+        foco?: string;
+        ambiente: string;
+        cnpj: string;
+        razaoSocial: string;
+        focusApiKey: string;
+        focusApiKeyMasked: string;
+        hasSavedApiKey: boolean;
+      };
+    };
+
+    expect(response.status).toBe(200);
+    expect(body.enabled).toBe(true);
+    expect(body.configured).toBe(true);
+    expect(body.config.cnpj).toBe(VALID_CONFIG.cnpj);
+    expect(body.config.razaoSocial).toBe(VALID_CONFIG.razaoSocial);
+    expect(body.config.focusApiKey).toBe("");
+    expect(body.config.hasSavedApiKey).toBe(true);
+    expect(body.config.focusApiKeyMasked).toContain("focus");
+    expect(body.config.focusApiKeyMasked).not.toBe(VALID_CONFIG.focusApiKey);
+
+    const storesAfterSave = listStores();
+    expect(storesAfterSave[0]?.nfe_enabled).toBe(1);
+    expect(storesAfterSave[0]?.nfe_configured).toBe(1);
+  });
+
+  it("mantem apenas os booleanos de NF-e para o tenant e bloqueia a edicao pelo owner", async () => {
     const { ownerSession, ownerCookie, tenantId } = createTenantContext();
     toggleNfeEnabled(tenantId, true);
     updateNfeConfig(ownerSession, VALID_CONFIG);
-
-    createSellerForTenant(ownerSession, {
-      name: "Vendedor",
-      email: "seller@teste.com",
-      password: "123456",
-      role: "seller",
-    });
-    const sellerAuth = authenticateUser("seller@teste.com", "123456");
-    if (!sellerAuth) throw new Error("Falha ao autenticar seller de teste.");
 
     const ownerResponse = await apiRequest({
       cookie: ownerCookie,
@@ -169,28 +279,22 @@ describe("NF-e backend", () => {
     const ownerBody = ownerResponse.body as {
       enabled: boolean;
       configured: boolean;
-      config: {
-        focusApiKey: string;
-        focusApiKeyMasked: string;
-        hasSavedApiKey: boolean;
-      };
+      config: null;
     };
 
     expect(ownerResponse.status).toBe(200);
     expect(ownerBody.enabled).toBe(true);
     expect(ownerBody.configured).toBe(true);
-    expect(ownerBody.config.focusApiKey).toBe("");
-    expect(ownerBody.config.hasSavedApiKey).toBe(true);
-    expect(ownerBody.config.focusApiKeyMasked).toContain("focus");
-    expect(ownerBody.config.focusApiKeyMasked).not.toBe(VALID_CONFIG.focusApiKey);
+    expect(ownerBody.config).toBeNull();
 
-    const sellerResponse = await apiRequest({
-      cookie: sellerAuth.cookieHeader,
-      method: "GET",
+    const ownerSaveResponse = await apiRequest({
+      cookie: ownerCookie,
+      method: "PUT",
       path: "/api/nfe/config",
+      body: VALID_CONFIG,
     });
 
-    expect(sellerResponse.status).toBe(403);
+    expect(ownerSaveResponse.status).toBe(403);
   });
 
   it("emite usando o valor e a descricao salvos no servidor, nao o payload do navegador", async () => {
@@ -363,5 +467,71 @@ describe("NF-e backend", () => {
     expect(venda?.nfe?.status).toBe("cancelada");
     expect(venda?.nfe?.danfeUrl).toBe("https://homologacao.focusnfe.com.br/arquivos/development/danfe.pdf");
     expect(venda?.nfe?.emitidaEm).toBe("2026-03-28T12:30:00.000Z");
+  });
+
+  it("disponibiliza DANFE e XML por endpoints autenticados da propria aplicacao", async () => {
+    const { ownerSession, ownerCookie, tenantId } = createTenantContext();
+    toggleNfeEnabled(tenantId, true);
+    updateNfeConfig(ownerSession, VALID_CONFIG);
+    seedVenda(ownerSession, {
+      vendaNfe: {
+        ref: "nfe_1_venda-1",
+        status: "autorizada",
+        danfeUrl: "https://homologacao.focusnfe.com.br/arquivos/development/danfe.pdf",
+        xmlUrl: "https://homologacao.focusnfe.com.br/arquivos/development/nfe.xml",
+      },
+    });
+
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(
+        mockAssetResponse(200, "%PDF-1.4 arquivo de teste", {
+          "content-type": "application/pdf",
+        }),
+      )
+      .mockResolvedValueOnce(
+        mockAssetResponse(200, "<xml>nota</xml>", {
+          "content-type": "application/xml",
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const danfeResponse = await apiRequest({
+      cookie: ownerCookie,
+      method: "GET",
+      path: "/api/nfe/danfe?vendaId=venda-1",
+    });
+    const xmlResponse = await apiRequest({
+      cookie: ownerCookie,
+      method: "GET",
+      path: "/api/nfe/xml?ref=nfe_1_venda-1",
+    });
+
+    const danfeBody = danfeResponse.body as {
+      success: true;
+      contentType: string;
+      fileName: string;
+      contentBase64: string;
+      inline: boolean;
+    };
+    const xmlBody = xmlResponse.body as {
+      success: true;
+      contentType: string;
+      fileName: string;
+      contentBase64: string;
+      inline: boolean;
+    };
+
+    expect(danfeResponse.status).toBe(200);
+    expect(danfeBody.contentType).toBe("application/pdf");
+    expect(danfeBody.fileName).toContain("nfe_1_venda-1");
+    expect(danfeBody.inline).toBe(true);
+    expect(Buffer.from(danfeBody.contentBase64, "base64").toString("utf-8")).toContain("%PDF-1.4");
+
+    expect(xmlResponse.status).toBe(200);
+    expect(xmlBody.contentType).toBe("application/xml");
+    expect(xmlBody.fileName).toContain("nfe_1_venda-1");
+    expect(xmlBody.inline).toBe(false);
+    expect(Buffer.from(xmlBody.contentBase64, "base64").toString("utf-8")).toContain("<xml>nota</xml>");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });

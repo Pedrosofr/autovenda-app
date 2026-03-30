@@ -1,11 +1,11 @@
 import { Suspense, lazy } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppStoreProvider } from "@/store/appStore";
-import { AuthProvider } from "@/lib/auth";
+import { AuthProvider, useAuth } from "@/lib/auth";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import AppLayout from "@/components/AppLayout";
 import DevUsagePanel from "@/components/DevUsagePanel";
@@ -34,6 +34,20 @@ const RouteFallback = () => (
   </div>
 );
 
+function TenantNfeRoute() {
+  const { tenant } = useAuth();
+
+  if (!tenant?.nfeEnabled) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return (
+    <AppLayout>
+      <NFeConfig />
+    </AppLayout>
+  );
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
@@ -56,7 +70,7 @@ const App = () => (
                 <Route path="/custos" element={<ProtectedRoute allowRoles={["owner", "seller"]} requiredPermission="verCustos"><AppLayout><Custos /></AppLayout></ProtectedRoute>} />
                 <Route path="/creditos" element={<ProtectedRoute allowRoles={["owner", "seller"]} requiredPermission="verCreditos"><AppLayout><Creditos /></AppLayout></ProtectedRoute>} />
                 <Route path="/equipe" element={<ProtectedRoute allowRoles={["owner"]}><AppLayout><TeamManagement /></AppLayout></ProtectedRoute>} />
-                <Route path="/nfe" element={<ProtectedRoute allowRoles={["owner"]}><AppLayout><NFeConfig /></AppLayout></ProtectedRoute>} />
+                <Route path="/nfe" element={<ProtectedRoute allowRoles={["owner"]}><TenantNfeRoute /></ProtectedRoute>} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </Suspense>

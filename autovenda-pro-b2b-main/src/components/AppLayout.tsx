@@ -90,7 +90,9 @@ function SidebarNav() {
     ? [...baseItems, { title: "Equipe", url: "/equipe", icon: Users, permission: undefined }]
     : baseItems;
   const navItems = !isPlatformAdmin && user?.role === "owner"
-    ? [...withTeam, { title: "NF-e", url: "/nfe", icon: FileText, permission: undefined }]
+    ? tenant?.nfeEnabled
+      ? [...withTeam, { title: "Notas fiscais", url: "/nfe", icon: FileText, permission: undefined }]
+      : withTeam
     : withTeam;
 
   const profileLabel = isPlatformAdmin ? "Admin da plataforma" : tenant?.name ?? user?.name ?? "Equipe";

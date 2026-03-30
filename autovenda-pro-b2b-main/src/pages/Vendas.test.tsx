@@ -11,7 +11,8 @@ const authMocks = vi.hoisted(() => ({
     status: "active" as const,
     trialEndsAt: new Date().toISOString(),
     planCode: "starter",
-    nfeEnabled: false,
+    nfeEnabled: true,
+    nfeConfigured: true,
     daysRemaining: 12,
   },
   user: {
@@ -39,6 +40,16 @@ vi.mock("@/store/appStore", () => ({
         vendedorId: "vendedor-1",
         valor: 123990,
         data: "2026-03-28",
+        nfe: {
+          status: "autorizada" as const,
+        },
+      },
+      {
+        id: "venda-2",
+        veiculoId: "veiculo-2",
+        vendedorId: "vendedor-1",
+        valor: 89990,
+        data: "2026-03-29",
       },
     ],
     veiculos: [
@@ -52,6 +63,17 @@ vi.mock("@/store/appStore", () => ({
         fotosDestaque: [],
         status: "vendido" as const,
         createdAt: "2026-03-01T10:00:00.000Z",
+      },
+      {
+        id: "veiculo-2",
+        modelo: "Onix LT",
+        ano: "2023",
+        valorVenda: "89990",
+        custo: "82000",
+        fotos: [],
+        fotosDestaque: [],
+        status: "vendido" as const,
+        createdAt: "2026-03-02T10:00:00.000Z",
       },
     ],
     vendedores: [
@@ -90,13 +112,17 @@ describe("Vendas", () => {
     vi.clearAllMocks();
   });
 
-  it("shows the registered sales with vehicle, seller and revenue data", () => {
+  it("shows operational invoice CTAs with white-label copy for enabled stores", () => {
     render(<Vendas />);
 
     expect(screen.getByRole("heading", { name: "Vendas" })).toBeInTheDocument();
     expect(screen.getAllByText("Corolla Cross XRE")).toHaveLength(2);
-    expect(screen.getByText(/Vendedor:\s*Sandra/)).toBeInTheDocument();
+    expect(screen.getByText("NF-e autorizadas")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Ver nota" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Emitir nota" })).toBeInTheDocument();
+    expect(screen.getAllByText(/Vendedor:\s*Sandra/)).toHaveLength(2);
     expect(screen.getAllByText(/R\$\s*123\.990,00/)).not.toHaveLength(0);
     expect(screen.getByText("1 pendencia aberta")).toBeInTheDocument();
+    expect(screen.queryByText(/Focus/i)).not.toBeInTheDocument();
   });
 });

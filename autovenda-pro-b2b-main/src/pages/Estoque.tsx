@@ -1580,11 +1580,11 @@ export default function Estoque() {
                         <Button asChild variant="outline" size="sm" className="w-full justify-center border-amber-500/20 text-amber-300 bg-amber-500/5 hover:bg-amber-500/10">
                           <Link to="/nfe">
                             <FileText className="mr-2 h-4 w-4" />
-                            Configurar NF-e
+                            Completar dados fiscais
                           </Link>
                         </Button>
                       ) : (
-                        <Badge className="border-white/10 bg-white/5 text-white/60">NF-e aguardando configuracao</Badge>
+                        <Badge className="border-white/10 bg-white/5 text-white/60">Notas fiscais aguardando liberacao</Badge>
                       );
                     }
                     return (
@@ -1601,7 +1601,7 @@ export default function Estoque() {
                         }
                       >
                         <FileText className="h-4 w-4 mr-2" />
-                        {nfeStatus === "autorizada" ? "Ver NF-e" : nfeStatus === "erro" ? "NF-e com erro" : venda.nfe ? "Ver NF-e" : "Emitir NF-e"}
+                        {nfeStatus === "autorizada" ? "Abrir nota" : nfeStatus === "erro" ? "Nota com erro" : venda.nfe ? "Abrir nota" : "Emitir nota"}
                       </Button>
                     );
                   })()}
