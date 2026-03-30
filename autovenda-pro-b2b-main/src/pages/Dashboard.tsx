@@ -139,7 +139,7 @@ export default function Dashboard() {
     return (
       <div className="space-y-5 lg:space-y-6 max-w-[1480px] mx-auto animate-pulse">
         <div className="h-10 w-48 rounded-xl bg-white/5" />
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
           {[1, 2, 3, 4].map((i) => (
             <div key={i} className="h-32 rounded-2xl bg-white/5" />
           ))}
@@ -157,27 +157,27 @@ export default function Dashboard() {
       <div className="flex flex-col xl:flex-row xl:items-end justify-between gap-4 animate-fade-up">
         <div className="text-center xl:text-left">
           <p className="text-white/32 text-xs font-semibold uppercase tracking-[0.24em]">Painel Geral</p>
-          <h1 className="text-[2rem] sm:text-[2.4rem] font-extrabold text-white mt-1 tracking-tight">
+          <h1 className="text-2xl sm:text-[2.4rem] font-extrabold text-white mt-1 tracking-tight">
             {nomesMes[mes]} <span className="text-gradient">{ano}</span>
           </h1>
         </div>
 
-        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:flex-wrap sm:justify-end">
+        <div className="flex items-center justify-center gap-2 sm:w-auto sm:justify-end">
           <Link
             to="/creditos"
-            className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-full border border-emerald-400/30 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 px-5 text-xs font-extrabold uppercase tracking-[0.16em] text-white shadow-lg shadow-emerald-500/30 transition-all hover:shadow-emerald-500/50 hover:scale-[1.03] active:scale-[0.97] sm:w-auto ring-1 ring-emerald-400/10"
+            className="inline-flex h-9 items-center justify-center gap-2 rounded-full border border-emerald-400/30 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 px-4 text-[10px] font-extrabold uppercase tracking-[0.16em] text-white shadow-lg shadow-emerald-500/30 transition-all hover:shadow-emerald-500/50 hover:scale-[1.03] active:scale-[0.97] ring-1 ring-emerald-400/10"
           >
-            <Wallet className="h-4 w-4" />
+            <Wallet className="h-3.5 w-3.5" />
             {"Cr\u00e9ditos"}
           </Link>
-          <div className="flex items-center justify-center gap-2 bg-white/5 border border-white/10 rounded-full px-4 py-2.5">
+          <div className="flex items-center gap-1.5 bg-white/5 border border-white/10 rounded-full px-3 py-2">
             <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-white/52 text-xs font-bold uppercase tracking-[0.16em]">Tempo real</span>
+            <span className="text-white/52 text-[10px] font-bold uppercase tracking-[0.16em]">Tempo real</span>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 xl:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
         {[
           {
             label: "Carros Vendidos",
@@ -226,15 +226,15 @@ export default function Dashboard() {
         ].map((kpi, index) => (
           <div
             key={kpi.label}
-            className={`relative overflow-hidden rounded-2xl bg-gradient-to-br ${kpi.gradient} border ${kpi.border} p-5 lg:p-6 animate-fade-up hover:scale-[1.015] transition-all duration-300 group`}
+            className={`relative overflow-hidden rounded-2xl bg-gradient-to-br ${kpi.gradient} border ${kpi.border} p-3 sm:p-5 lg:p-6 animate-fade-up hover:scale-[1.015] transition-all duration-300 group`}
             style={{ animationDelay: `${index * 0.08}s` }}
           >
             <div className="absolute -top-10 -right-10 w-32 h-32 rounded-full blur-[60px] opacity-30" style={{ backgroundColor: kpi.color }} />
 
             <div className="relative z-10">
-              <div className="flex items-center justify-between mb-4">
-                <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ backgroundColor: `${kpi.color}20` }}>
-                  <kpi.icon className="h-5 w-5" style={{ color: kpi.color }} />
+              <div className="flex items-center justify-between mb-2 sm:mb-4">
+                <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center" style={{ backgroundColor: `${kpi.color}20` }}>
+                  <kpi.icon className="h-4 w-4 sm:h-5 sm:w-5" style={{ color: kpi.color }} />
                 </div>
                 {kpi.variation !== null && (
                   <div
@@ -249,11 +249,11 @@ export default function Dashboard() {
               </div>
 
               <div className="mt-2 flex flex-col gap-1 sm:flex-row sm:items-end sm:gap-0">
-                <p className="text-3xl md:text-[2rem] lg:text-[2.55rem] font-black text-white tabular-nums leading-none">{kpi.value}</p>
+                <p className="text-xl sm:text-3xl md:text-[2rem] lg:text-[2.55rem] font-black text-white tabular-nums leading-none">{kpi.value}</p>
                 {kpi.suffix && <span className="text-white/32 text-sm font-bold sm:ml-1 sm:text-base">{kpi.suffix}</span>}
               </div>
-              <p className="text-white/42 text-xs uppercase tracking-[0.18em] font-bold mt-3">{kpi.label}</p>
-              <p className="text-white/24 text-xs sm:text-[13px] mt-2 leading-relaxed">{kpi.sub}</p>
+              <p className="text-white/42 text-[10px] sm:text-xs uppercase tracking-[0.18em] font-bold mt-2 sm:mt-3">{kpi.label}</p>
+              <p className="text-white/24 text-[10px] sm:text-xs mt-1 sm:mt-2 leading-relaxed hidden sm:block">{kpi.sub}</p>
             </div>
           </div>
         ))}
