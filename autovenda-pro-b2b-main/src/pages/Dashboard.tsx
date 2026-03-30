@@ -29,7 +29,7 @@ export default function Dashboard() {
   const { user, loading: authLoading } = useAuth();
   const mes = new Date().getMonth();
   const ano = new Date().getFullYear();
-  const [chartMode, setChartMode] = useState<"faturamento" | "carros">("faturamento");
+  const [chartMode, setChartMode] = useState<"lucro" | "carros">("lucro");
   const sellerMembershipId = user?.role === "seller" ? user.membershipId : null;
   const scopedVendas = sellerMembershipId
     ? vendas.filter((venda) => venda.vendedorId === sellerMembershipId)
@@ -55,8 +55,14 @@ export default function Dashboard() {
   });
 
   const carrosVendidos = vendasMes.length;
-  const faturamentoMes = vendasMes.reduce((acc, item) => acc + item.valor, 0);
-  const faturamentoAnterior = vendasAnterior.reduce((acc, item) => acc + item.valor, 0);
+  const lucroMes = vendasMes.reduce((acc, venda) => {
+    const veiculo = veiculos.find((v) => v.id === venda.veiculoId);
+    return acc + venda.valor - (parseFloat(veiculo?.custo || "0") || 0);
+  }, 0);
+  const lucroAnterior = vendasAnterior.reduce((acc, venda) => {
+    const veiculo = veiculos.find((v) => v.id === venda.veiculoId);
+    return acc + venda.valor - (parseFloat(veiculo?.custo || "0") || 0);
+  }, 0);
   const leadsMes = scopedLeads.filter((lead) => {
     const data = new Date(lead.data);
     return data.getMonth() === mes && data.getFullYear() === ano;
@@ -88,7 +94,7 @@ export default function Dashboard() {
 
   const chart6m = useMemo(() => {
     const nomesMesCurto = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
-    const resultado: { mes: string; valor: number; qtd: number }[] = [];
+    const resultado: { mes: string; lucro: number; qtd: number }[] = [];
 
     for (let i = 5; i >= 0; i--) {
       let mesAtual = mes - i;
@@ -105,7 +111,10 @@ export default function Dashboard() {
 
       resultado.push({
         mes: nomesMesCurto[mesAtual],
-        valor: vendasDoMes.reduce((acc, item) => acc + item.valor, 0),
+        lucro: vendasDoMes.reduce((acc, venda) => {
+          const veiculo = veiculos.find((v) => v.id === venda.veiculoId);
+          return acc + venda.valor - (parseFloat(veiculo?.custo || "0") || 0);
+        }, 0),
         qtd: vendasDoMes.length,
       });
     }
@@ -131,8 +140,8 @@ export default function Dashboard() {
   const variacaoCarros = vendasAnterior.length > 0
     ? ((carrosVendidos - vendasAnterior.length) / vendasAnterior.length) * 100
     : 0;
-  const variacaoFaturamento = faturamentoAnterior > 0
-    ? ((faturamentoMes - faturamentoAnterior) / faturamentoAnterior) * 100
+  const variacaoLucro = lucroAnterior > 0
+    ? ((lucroMes - lucroAnterior) / lucroAnterior) * 100
     : 0;
 
   if (authLoading || loadingRemoteState) {
@@ -191,15 +200,15 @@ export default function Dashboard() {
             sub: `${vendasAnterior.length} m\u00eas anterior`,
           },
           {
-            label: "Faturamento",
-            value: faturamentoMes > 0 ? `R$ ${(faturamentoMes / 1000).toFixed(0)}k` : "R$ 0",
+            label: "Lucro Bruto",
+            value: lucroMes > 0 ? `R$ ${(lucroMes / 1000).toFixed(0)}k` : "R$ 0",
             suffix: "",
             icon: DollarSign,
             color: "#8b5cf6",
             gradient: "from-purple-500/20 to-purple-600/5",
             border: "border-purple-500/20",
-            variation: variacaoFaturamento,
-            sub: faturamentoAnterior > 0 ? `R$ ${(faturamentoAnterior / 1000).toFixed(0)}k anterior` : "Sem base anterior",
+            variation: variacaoLucro,
+            sub: lucroAnterior > 0 ? `R$ ${(lucroAnterior / 1000).toFixed(0)}k anterior` : "Sem base anterior",
           },
           {
             label: "Em Estoque",

@@ -12,11 +12,11 @@ import {
   YAxis,
 } from "recharts";
 
-type ChartMode = "faturamento" | "carros";
+type ChartMode = "lucro" | "carros";
 
 interface ChartPoint {
   mes: string;
-  valor: number;
+  lucro: number;
   qtd: number;
 }
 
@@ -165,14 +165,14 @@ export default function DashboardCharts({
             </div>
             <div className="flex bg-white/5 rounded-lg sm:rounded-xl p-0.5 sm:p-1 self-start sm:self-auto">
               <button
-                onClick={() => setChartMode("faturamento")}
+                onClick={() => setChartMode("lucro")}
                 className={`px-2 sm:px-4 py-1 sm:py-2 rounded-md sm:rounded-lg text-[9px] sm:text-xs font-bold transition-all ${
-                  chartMode === "faturamento"
+                  chartMode === "lucro"
                     ? "bg-blue-500/20 text-blue-400"
                     : "text-white/35 hover:text-white/60"
                 }`}
               >
-                R$ Fat.
+                Lucro
               </button>
               <button
                 onClick={() => setChartMode("carros")}
@@ -189,7 +189,7 @@ export default function DashboardCharts({
 
           <div className="h-40 sm:h-72 lg:h-[340px]">
             <ResponsiveContainer width="100%" height="100%">
-              {chartMode === "faturamento" ? (
+              {chartMode === "lucro" ? (
                 <AreaChart data={chart6m}>
                   <defs>
                     <linearGradient id="gFat2" x1="0" y1="0" x2="0" y2="1">
@@ -218,12 +218,12 @@ export default function DashboardCharts({
                       color: "#fff",
                       boxShadow: "0 24px 64px rgba(0,0,0,0.5)",
                     }}
-                    formatter={(val: number) => [`R$ ${val.toLocaleString("pt-BR")}`, "Faturamento"]}
+                    formatter={(val: number) => [`R$ ${val.toLocaleString("pt-BR")}`, "Lucro Bruto"]}
                     labelStyle={{ color: "rgba(255,255,255,0.45)" }}
                   />
                   <Area
                     type="monotone"
-                    dataKey="valor"
+                    dataKey="lucro"
                     stroke="url(#strokeG2)"
                     strokeWidth={3}
                     fill="url(#gFat2)"

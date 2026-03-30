@@ -79,14 +79,23 @@ export default function Vendas() {
   }, [rows, search]);
 
   const totals = useMemo(() => {
-    const revenue = rows.reduce((sum, row) => sum + row.venda.valor, 0);
-    const averageTicket = rows.length > 0 ? revenue / rows.length : 0;
+    const lucroTotal = rows.reduce((sum, row) => {
+      const custo = parseFloat(row.veiculo?.custo || "0") || 0;
+      return sum + row.venda.valor - custo;
+    }, 0);
+    const margemMedia = rows.length > 0
+      ? rows.reduce((sum, row) => {
+          const custo = parseFloat(row.veiculo?.custo || "0") || 0;
+          const margem = row.venda.valor > 0 ? ((row.venda.valor - custo) / row.venda.valor) * 100 : 0;
+          return sum + margem;
+        }, 0) / rows.length
+      : 0;
     const pendencias = rows.reduce((sum, row) => sum + row.pendencias, 0);
     const nfesAutorizadas = rows.filter((row) => row.venda.nfe?.status === "autorizada").length;
 
     return {
-      revenue,
-      averageTicket,
+      lucroTotal,
+      margemMedia,
       pendencias,
       nfesAutorizadas,
     };
@@ -106,7 +115,7 @@ export default function Vendas() {
             Vendas
           </h1>
           <p className="mt-1 text-sm text-white/45">
-            Acompanhe faturamento, status das notas fiscais e pendencias de cada veiculo vendido.
+            Acompanhe lucro, status das notas fiscais e pendencias de cada veiculo vendido.
           </p>
         </div>
         <div className="relative w-full max-w-sm">
@@ -127,8 +136,8 @@ export default function Vendas() {
               <TrendingUp className="h-5 w-5 text-emerald-300" />
             </div>
             <div>
-              <div className="text-xs uppercase tracking-[0.2em] text-white/35">Faturamento</div>
-              <div className="mt-1 text-lg font-semibold">{currency(totals.revenue)}</div>
+              <div className="text-xs uppercase tracking-[0.2em] text-white/35">Lucro Bruto</div>
+              <div className="mt-1 text-lg font-semibold">{currency(totals.lucroTotal)}</div>
             </div>
           </CardContent>
         </Card>
@@ -139,8 +148,8 @@ export default function Vendas() {
               <Receipt className="h-5 w-5 text-blue-300" />
             </div>
             <div>
-              <div className="text-xs uppercase tracking-[0.2em] text-white/35">Ticket medio</div>
-              <div className="mt-1 text-lg font-semibold">{currency(totals.averageTicket)}</div>
+              <div className="text-xs uppercase tracking-[0.2em] text-white/35">Margem Media</div>
+              <div className="mt-1 text-lg font-semibold">{totals.margemMedia.toFixed(1)}%</div>
             </div>
           </CardContent>
         </Card>
