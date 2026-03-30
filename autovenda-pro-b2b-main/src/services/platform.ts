@@ -6,6 +6,7 @@ export interface PlatformStoreSummary {
   plan_code: string;
   max_users: number;
   trial_ends_at: string;
+  nfe_enabled: number;
   users_count: number;
   owner_name: string | null;
   owner_email: string | null;
@@ -62,7 +63,7 @@ export async function createPlatformStore(payload: {
 
 export async function updatePlatformStore(
   storeId: number,
-  payload: { status?: PlatformStoreSummary["status"]; extendTrialDays?: number; trialDays?: number; maxUsers?: number },
+  payload: { status?: PlatformStoreSummary["status"]; extendTrialDays?: number; trialDays?: number; maxUsers?: number; nfeEnabled?: boolean },
 ) {
   return request<{ success: true; stores: PlatformStoreSummary[] }>(`/api/platform/stores/${storeId}`, {
     method: "PATCH",

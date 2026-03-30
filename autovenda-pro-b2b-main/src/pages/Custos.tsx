@@ -387,11 +387,17 @@ export default function Custos() {
   // ─── Derivados ────────────────────────────────────────────────────────────────
 
   const veiculosAtivos = useMemo(() => veiculos.filter((v) => !v.archivedAt && !v.deletedAt), [veiculos]);
-  const veiculosCustos = useMemo(() => [...veiculosAtivos, ...veiculosSimulados], [veiculosAtivos, veiculosSimulados]);
+  const veiculoIdsComCustos = useMemo(() => new Set(custos.map((c) => c.veiculoId)), [custos]);
+  const veiculosCustosEstoque = useMemo(
+    () => veiculosAtivos.filter((v) => v.custosAtivo || veiculoIdsComCustos.has(v.id)),
+    [veiculoIdsComCustos, veiculosAtivos]
+  );
+  const veiculosCustos = useMemo(() => [...veiculosCustosEstoque, ...veiculosSimulados], [veiculosCustosEstoque, veiculosSimulados]);
+  const veiculoIdsNaAba = useMemo(() => new Set(veiculosCustos.map((v) => v.id)), [veiculosCustos]);
   const existingFiltered = useMemo(() => {
     const s = existingSearch.trim().toLowerCase();
-    return veiculosAtivos.filter((v) => !s || v.modelo.toLowerCase().includes(s));
-  }, [existingSearch, veiculosAtivos]);
+    return veiculosAtivos.filter((v) => !veiculoIdsNaAba.has(v.id) && (!s || v.modelo.toLowerCase().includes(s)));
+  }, [existingSearch, veiculoIdsNaAba, veiculosAtivos]);
 
   const custosPorVeiculo = useMemo(() => {
     const map: Record<string, { total: number; qtd: number }> = {};
@@ -447,10 +453,12 @@ export default function Custos() {
     () => custosDoSelecionado.reduce((s, c) => s + c.valor, 0),
     [custosDoSelecionado]
   );
-
   const totalReparosGeral = useMemo(() => custos.reduce((s, c) => s + c.valor, 0), [custos]);
-  const mediaReparos      = veiculosCustos.length > 0 ? totalReparosGeral / veiculosCustos.length : 0;
-  const lucroTotal        = useMemo(() => veiculosCustos.reduce((acc, v) => acc + (parseMoney(v.valorVenda) - parseMoney(v.custo) - (custosPorVeiculo[v.id]?.total ?? 0)), 0), [veiculosCustos, custosPorVeiculo]);
+  const mediaReparos = veiculosCustos.length > 0 ? totalReparosGeral / veiculosCustos.length : 0;
+  const lucroTotal = useMemo(
+    () => veiculosCustos.reduce((acc, v) => acc + (parseMoney(v.valorVenda) - parseMoney(v.custo) - (custosPorVeiculo[v.id]?.total ?? 0)), 0),
+    [custosPorVeiculo, veiculosCustos]
+  );
 
   // Itens do checklist atual + totais
   const itensChecklist   = useMemo(() => calcularItens(cl, tamanho, configPrecos), [cl, tamanho, configPrecos]);
@@ -551,6 +559,17 @@ export default function Custos() {
     handleFechar();
   };
 
+  const handleDesvincularVeiculo = () => {
+    if (!selectedVeiculo || selectedVeiculo.id.startsWith(SIMULACAO_PREFIX)) return;
+    if (custosDoSelecionado.length > 0) {
+      toast.error("Remova os reparos lancados antes de tirar este veiculo da aba de custos.");
+      return;
+    }
+    updateVeiculo(selectedVeiculo.id, { custosAtivo: false });
+    toast.success("Veiculo removido da aba de custos.");
+    handleFechar();
+  };
+
   const salvarCustoCompra = () => {
     if (!selectedVeiculo) return;
     const valor = parseMoney(custoCompraInput);
@@ -588,13 +607,14 @@ export default function Custos() {
         toast.error("Selecione um veiculo existente.");
         return;
       }
-      const custo = parseMoney(existingCusto);
+      const custo = parseMoney(existingCusto || alvo.custo);
       if (custo <= 0) {
         toast.error("Informe o custo do veiculo.");
         return;
       }
-      updateVeiculo(alvo.id, { custo: String(custo) });
-      setSelectedVeiculo({ ...alvo, custo: String(custo) });
+      updateVeiculo(alvo.id, { custo: String(custo), custosAtivo: true });
+      setSelectedVeiculo({ ...alvo, custo: String(custo), custosAtivo: true });
+      setSearch(alvo.modelo);
       setShowAddVeiculo(false);
       toast.success("Veiculo existente vinculado na aba de custos.");
       return;
@@ -665,7 +685,7 @@ export default function Custos() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-extrabold text-white">Custos de Reparo</h1>
-          <p className="text-white/30 text-sm mt-1">{veiculosCustos.length} veiculos na aba de custos</p>
+          <p className="text-white/30 text-sm mt-1">{veiculosCustos.length} veiculos acompanhados na aba de custos</p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
           <Button onClick={abrirAdicionarVeiculo} className="card-gradient-blue text-white gap-2 w-full sm:w-auto">
@@ -692,8 +712,46 @@ export default function Custos() {
         </div>
       </div>
 
+      <div className="rounded-2xl border border-white/10 bg-[hsl(230,18%,11%)] p-3 sm:p-4 space-y-3">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="text-white font-semibold text-sm">Controle limpo por veiculo</p>
+            <p className="text-white/40 text-xs">O carro so entra aqui quando voce adiciona. Clique no card para lancar custo de compra e reparos separados por veiculo.</p>
+          </div>
+          <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/45">
+            {veiculosCustos.length} em acompanhamento agora
+          </div>
+        </div>
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div className="relative w-full xl:max-w-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/30" />
+            <Input placeholder="Buscar veiculo..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9 bg-white/5 border-white/10 text-white placeholder:text-white/20 h-10" />
+          </div>
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+            {[
+              { key: "todos" as const, label: "Todos", count: veiculosComResumo.length },
+              { key: "sem_reparo" as const, label: "Sem reparo", count: prioridades.semReparo },
+              { key: "margem_baixa" as const, label: "Margem baixa", count: prioridades.margemBaixa },
+              { key: "prejuizo" as const, label: "No prejuizo", count: prioridades.prejuizo },
+            ].map((filtro) => (
+              <button
+                key={filtro.key}
+                onClick={() => setVisaoRapida(filtro.key)}
+                className={`h-10 rounded-xl px-3 text-xs font-semibold border transition-colors ${
+                  visaoRapida === filtro.key
+                    ? "bg-blue-500/15 text-blue-300 border-blue-500/30"
+                    : "bg-white/5 text-white/60 border-white/10 hover:border-white/25"
+                }`}
+              >
+                {filtro.label} ({filtro.count})
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
       {/* Cards resumo */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="hidden grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
           { icon: <Wrench className="h-5 w-5 text-orange-400" />, bg: "bg-orange-500/10 border-orange-500/20", label: "Total em reparos", valor: totalReparosGeral, cor: "text-white" },
           { icon: <DollarSign className="h-5 w-5 text-blue-400" />, bg: "bg-blue-500/10 border-blue-500/20", label: "Média reparo/carro", valor: mediaReparos, cor: "text-white" },
@@ -706,7 +764,7 @@ export default function Custos() {
         ))}
       </div>
 
-      <div className="rounded-2xl border border-white/10 bg-[hsl(230,18%,11%)] p-3 sm:p-4 space-y-3">
+      <div className="hidden rounded-2xl border border-white/10 bg-[hsl(230,18%,11%)] p-3 sm:p-4 space-y-3">
         <div className="flex items-start gap-2">
           <AlertTriangle className="h-4 w-4 text-amber-300 mt-0.5" />
           <div>
@@ -737,7 +795,7 @@ export default function Custos() {
       </div>
 
       {/* Busca */}
-      <div className="relative max-w-sm">
+      <div className="hidden relative max-w-sm">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/30" />
         <Input placeholder="Buscar veículo..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9 bg-white/5 border-white/10 text-white placeholder:text-white/20 h-10" />
       </div>
@@ -782,6 +840,9 @@ export default function Custos() {
 
             {addMode === "existente" ? (
               <div className="space-y-3">
+                <p className="text-xs text-white/35">
+                  Escolha um carro do estoque para acompanhar os custos dele aqui, sem misturar com os outros.
+                </p>
                 <Input
                   value={existingSearch}
                   onChange={(e) => setExistingSearch(e.target.value)}
@@ -803,7 +864,7 @@ export default function Custos() {
                 <Input
                   value={existingCusto}
                   onChange={(e) => setExistingCusto(e.target.value)}
-                  placeholder="Custo do veiculo (obrigatorio)"
+                  placeholder="Custo do veiculo (usa o salvo se deixar em branco)"
                   className="bg-white/5 border-white/10 text-white"
                 />
               </div>
@@ -1236,6 +1297,21 @@ export default function Custos() {
                     <Trash2 className="h-4 w-4 mr-2" />
                     Excluir simulacao do custo
                   </Button>
+                )}
+                {!selectedVeiculo.id.startsWith(SIMULACAO_PREFIX) && Boolean(selectedVeiculo.custosAtivo) && custosDoSelecionado.length === 0 && (
+                  <Button
+                    variant="outline"
+                    onClick={handleDesvincularVeiculo}
+                    className="w-full border-white/10 text-white/70 hover:text-white hover:bg-white/5"
+                  >
+                    <RotateCcw className="h-4 w-4 mr-2" />
+                    Remover da aba de custos
+                  </Button>
+                )}
+                {!selectedVeiculo.id.startsWith(SIMULACAO_PREFIX) && custosDoSelecionado.length > 0 && (
+                  <p className="text-center text-[11px] text-white/35">
+                    Esse veiculo continua aqui enquanto tiver reparos lancados.
+                  </p>
                 )}
               </div>
             </>

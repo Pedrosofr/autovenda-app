@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useDeferredValue } from "react";
+import { Link } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -19,7 +20,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  Archive,
   Car,
   ChevronLeft,
   ChevronRight,
@@ -37,10 +37,12 @@ import {
   Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { FileText } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useAppStore } from "@/store/appStore";
-import type { AjustesFoto, Veiculo } from "@/store/types";
+import type { AjustesFoto, Veiculo, Venda } from "@/store/types";
 import { analyzeVehicleWithGemini as analyzeVehicleWithClaude, generateVehicleDescriptionsWithGemini as generateVehicleDescriptions, type AIVehicleResult } from "@/services/gemini";
+import { NFeEmitirDialog } from "@/components/NFeEmitirDialog";
 
 type EstoqueViewMode = "ativos" | "arquivados" | "lixeira";
 type CompareMode = "comparar" | "original" | "tratada";
@@ -489,10 +491,12 @@ function MarcarVendido({
   veiculo,
   vendedores,
   onVendido,
+  className,
 }: {
   veiculo: Veiculo;
   vendedores: { id: string; nome: string }[];
   onVendido: () => void;
+  className?: string;
 }) {
   const { addVenda } = useAppStore();
   const { user } = useAuth();
@@ -503,7 +507,12 @@ function MarcarVendido({
 
   return (
     <>
-      <Button variant="outline" size="sm" onClick={() => setOpen(true)} className="border-white/10 text-white/70 hover:text-white hover:bg-white/5">
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => setOpen(true)}
+        className={`border-white/10 text-white/70 hover:text-white hover:bg-white/5 ${className ?? ""}`}
+      >
         Marcar vendido
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
@@ -550,18 +559,24 @@ function MarcarVendido({
 export default function Estoque() {
   const {
     veiculos,
+    vendas,
     vendedores,
     memoriaLoja,
     configPrecos,
     addVeiculo,
     updateVeiculo,
-    archiveVeiculo,
     trashVeiculo,
     restoreVeiculo,
     removeVeiculo,
     clearDeletedVeiculos,
     registrarAprendizadoLoja,
+    refreshRemoteState,
   } = useAppStore();
+
+  const { tenant, user } = useAuth();
+  const nfeEnabled = tenant?.nfeEnabled ?? false;
+  const nfeConfigured = tenant?.nfeConfigured ?? false;
+  const canEmitNfe = nfeEnabled && nfeConfigured;
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [search, setSearch] = useState("");
@@ -570,6 +585,7 @@ export default function Estoque() {
   const [viewMode, setViewMode] = useState<EstoqueViewMode>("ativos");
   const [showNew, setShowNew] = useState(false);
   const [showDetail, setShowDetail] = useState<Veiculo | null>(null);
+  const [nfeVenda, setNfeVenda] = useState<Venda | null>(null);
   const [detailPhotoIdx, setDetailPhotoIdx] = useState(0);
   const [draftPhotoIdx, setDraftPhotoIdx] = useState(0);
   const [draft, setDraft] = useState<VehicleDraft>(() => createEmptyDraft());
@@ -577,6 +593,18 @@ export default function Estoque() {
   const [isPreparingShare, setIsPreparingShare] = useState(false);
   const [compareMode, setCompareMode] = useState<CompareMode>("comparar");
   const [shareChannel, setShareChannel] = useState<ShareChannel>("whatsapp");
+
+  const marcarComoReservado = useCallback((veiculo: Veiculo) => {
+    updateVeiculo(veiculo.id, { status: "reservado" });
+    setShowDetail((current) => (current?.id === veiculo.id ? null : current));
+    toast.success("Veiculo marcado como reservado.");
+  }, [updateVeiculo]);
+
+  const liberarReserva = useCallback((veiculo: Veiculo) => {
+    updateVeiculo(veiculo.id, { status: "disponivel" });
+    setShowDetail((current) => (current?.id === veiculo.id ? null : current));
+    toast.success("Reserva liberada.");
+  }, [updateVeiculo]);
 
   const counts = useMemo(
     () => ({
@@ -1061,18 +1089,38 @@ export default function Estoque() {
                   <p className="text-white font-extrabold text-lg">{veiculo.valorVenda}</p>
                 </div>
 
-                <div className="flex gap-2 mt-4">
+                <div className="mt-4 grid grid-cols-2 gap-2" onClick={(e) => e.stopPropagation()}>
                   {!veiculo.archivedAt && !veiculo.deletedAt ? (
                     <>
-                      <button type="button" onClick={(e) => { e.stopPropagation(); archiveVeiculo(veiculo.id); }} className="flex-1 rounded-xl border border-white/10 px-3 py-2 text-xs text-white/60 hover:bg-white/5">
-                        Arquivar
-                      </button>
-                      <button type="button" onClick={(e) => { e.stopPropagation(); trashVeiculo(veiculo.id); }} className="flex-1 rounded-xl border border-red-500/20 px-3 py-2 text-xs text-red-300 hover:bg-red-500/10">
-                        Lixeira
-                      </button>
+                      {veiculo.status === "disponivel" && (
+                        <>
+                          <button type="button" onClick={() => marcarComoReservado(veiculo)} className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs font-semibold text-amber-200 hover:bg-amber-500/10">
+                            Reservar
+                          </button>
+                          <MarcarVendido veiculo={veiculo} vendedores={vendedores} onVendido={() => setShowDetail(null)} className="w-full justify-center" />
+                        </>
+                      )}
+                      {veiculo.status === "reservado" && (
+                        <>
+                          <button type="button" onClick={() => liberarReserva(veiculo)} className="rounded-xl border border-white/10 px-3 py-2 text-xs font-semibold text-white/70 hover:bg-white/5 hover:text-white">
+                            Liberar
+                          </button>
+                          <MarcarVendido veiculo={veiculo} vendedores={vendedores} onVendido={() => setShowDetail(null)} className="w-full justify-center" />
+                        </>
+                      )}
+                      {veiculo.status === "vendido" && (
+                        <>
+                          <div className="rounded-xl border border-sky-500/20 bg-sky-500/10 px-3 py-2 text-center text-xs font-semibold text-sky-200">
+                            Vendido
+                          </div>
+                          <button type="button" onClick={() => trashVeiculo(veiculo.id)} className="rounded-xl border border-red-500/20 px-3 py-2 text-xs font-semibold text-red-300 hover:bg-red-500/10">
+                            Lixeira
+                          </button>
+                        </>
+                      )}
                     </>
                   ) : (
-                    <button type="button" onClick={(e) => { e.stopPropagation(); restoreVeiculo(veiculo.id); }} className="w-full rounded-xl border border-white/10 px-3 py-2 text-xs text-white/60 hover:bg-white/5">
+                    <button type="button" onClick={() => restoreVeiculo(veiculo.id)} className="col-span-2 rounded-xl border border-white/10 px-3 py-2 text-xs text-white/60 hover:bg-white/5">
                       Restaurar
                     </button>
                   )}
@@ -1443,25 +1491,11 @@ export default function Estoque() {
                 </div>
 
                 <div className="rounded-2xl border border-white/10 bg-white/5 p-3 space-y-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-white font-semibold">Publicacao</p>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() =>
-                        downloadPack(showDetail).then(() =>
-                          toast.success("Baixando 2 fotos principais: capa e destaque")
-                        )
-                      }
-                      className="border-white/10 text-white/70 hover:text-white hover:bg-white/5 shrink-0"
-                    >
-                      <Download className="h-4 w-4 mr-2" /> Fotos
-                    </Button>
+                  <div>
+                    <p className="text-white font-semibold">Publicacao</p>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-[150px_1fr_1fr] gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2">
                     <Select value={shareChannel} onValueChange={(value: ShareChannel) => setShareChannel(value)}>
                       <SelectTrigger className="w-full h-9 bg-white/5 border-white/10 text-white">
                         <SelectValue />
@@ -1495,46 +1529,97 @@ export default function Estoque() {
                       )}
                       {getChannelActionLabel(shareChannel)}
                     </Button>
-                  </div>
-                </div>
-
-                <div className="flex gap-2 flex-wrap">
-                  {!showDetail.archivedAt && !showDetail.deletedAt && showDetail.status === "disponivel" && (
-                    <MarcarVendido veiculo={showDetail} vendedores={vendedores} onVendido={() => setShowDetail(null)} />
-                  )}
-                  {!showDetail.archivedAt && !showDetail.deletedAt && showDetail.status === "reservado" && (
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => {
-                        updateVeiculo(showDetail.id, { status: "disponivel" });
-                        setShowDetail(null);
-                      }}
-                      className="border-white/10 text-white/70 hover:text-white hover:bg-white/5"
+                      onClick={() =>
+                        downloadPack(showDetail).then(() =>
+                          toast.success("Baixando 2 fotos principais: capa e destaque")
+                        )
+                      }
+                      className="w-full justify-center border-white/10 text-white/70 hover:text-white hover:bg-white/5"
                     >
-                      <RotateCcw className="h-4 w-4 mr-2" /> Liberar reserva
+                      <Download className="h-4 w-4 mr-2" /> Fotos
                     </Button>
-                  )}
+                  </div>
                 </div>
 
-                <div className="flex gap-2 flex-wrap pt-2 border-t border-white/5">
-                  {!showDetail.archivedAt && !showDetail.deletedAt && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {!showDetail.archivedAt && !showDetail.deletedAt && showDetail.status === "disponivel" && (
                     <>
-                      <Button variant="outline" size="sm" onClick={() => { archiveVeiculo(showDetail.id); setShowDetail(null); }} className="border-white/10 text-white/70">
-                        <Archive className="h-4 w-4 mr-2" /> Arquivar
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => marcarComoReservado(showDetail)}
+                        className="w-full justify-center border-amber-500/20 text-amber-200 bg-amber-500/5 hover:bg-amber-500/10"
+                      >
+                        Reservar
                       </Button>
-                      <Button variant="destructive" size="sm" onClick={() => { trashVeiculo(showDetail.id); setShowDetail(null); }}>
-                        <Trash2 className="h-4 w-4 mr-2" /> Lixeira
-                      </Button>
+                      <MarcarVendido veiculo={showDetail} vendedores={vendedores} onVendido={() => setShowDetail(null)} className="w-full justify-center" />
                     </>
                   )}
+                  {!showDetail.archivedAt && !showDetail.deletedAt && showDetail.status === "reservado" && (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => liberarReserva(showDetail)}
+                        className="w-full justify-center border-white/10 text-white/70 hover:text-white hover:bg-white/5"
+                      >
+                        <RotateCcw className="h-4 w-4 mr-2" /> Liberar reserva
+                      </Button>
+                      <MarcarVendido veiculo={showDetail} vendedores={vendedores} onVendido={() => setShowDetail(null)} className="w-full justify-center" />
+                    </>
+                  )}
+                  {showDetail.status === "vendido" && nfeEnabled && (() => {
+                    const venda = vendas.find((v) => v.veiculoId === showDetail.id);
+                    if (!venda) return null;
+                    const nfeStatus = venda.nfe?.status;
+                    if (!canEmitNfe) {
+                      return user?.role === "owner" ? (
+                        <Button asChild variant="outline" size="sm" className="w-full justify-center border-amber-500/20 text-amber-300 bg-amber-500/5 hover:bg-amber-500/10">
+                          <Link to="/nfe">
+                            <FileText className="mr-2 h-4 w-4" />
+                            Configurar NF-e
+                          </Link>
+                        </Button>
+                      ) : (
+                        <Badge className="border-white/10 bg-white/5 text-white/60">NF-e aguardando configuracao</Badge>
+                      );
+                    }
+                    return (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setNfeVenda(venda)}
+                        className={
+                          nfeStatus === "autorizada"
+                            ? "w-full justify-center border-emerald-500/30 text-emerald-300 bg-emerald-500/5 hover:bg-emerald-500/10"
+                            : nfeStatus === "erro"
+                            ? "w-full justify-center border-red-500/30 text-red-300 bg-red-500/5 hover:bg-red-500/10"
+                            : "w-full justify-center border-amber-500/20 text-amber-300 bg-amber-500/5 hover:bg-amber-500/10"
+                        }
+                      >
+                        <FileText className="h-4 w-4 mr-2" />
+                        {nfeStatus === "autorizada" ? "Ver NF-e" : nfeStatus === "erro" ? "NF-e com erro" : venda.nfe ? "Ver NF-e" : "Emitir NF-e"}
+                      </Button>
+                    );
+                  })()}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-white/5">
+                  {!showDetail.archivedAt && !showDetail.deletedAt && (
+                    <Button variant="destructive" size="sm" onClick={() => { trashVeiculo(showDetail.id); setShowDetail(null); }} className="w-full justify-center">
+                        <Trash2 className="h-4 w-4 mr-2" /> Lixeira
+                    </Button>
+                  )}
                   {(showDetail.archivedAt || showDetail.deletedAt) && (
-                    <Button variant="outline" size="sm" onClick={() => { restoreVeiculo(showDetail.id); setShowDetail(null); }} className="border-white/10 text-white/70">
+                    <Button variant="outline" size="sm" onClick={() => { restoreVeiculo(showDetail.id); setShowDetail(null); }} className="w-full justify-center border-white/10 text-white/70">
                       <RotateCcw className="h-4 w-4 mr-2" /> Restaurar
                     </Button>
                   )}
                   {showDetail.deletedAt && (
-                    <Button variant="destructive" size="sm" onClick={() => handlePermanentDelete(showDetail)}>
+                    <Button variant="destructive" size="sm" onClick={() => handlePermanentDelete(showDetail)} className="w-full justify-center">
                       <Trash2 className="h-4 w-4 mr-2" /> Excluir
                     </Button>
                   )}
@@ -1547,6 +1632,16 @@ export default function Estoque() {
           )}
         </DialogContent>
       </Dialog>
+
+      {nfeVenda && showDetail && (
+        <NFeEmitirDialog
+          open={!!nfeVenda}
+          onOpenChange={(open) => { if (!open) setNfeVenda(null); }}
+          venda={nfeVenda}
+          veiculo={showDetail}
+          onNfeEmitida={(_vendaId, _nfe) => { void refreshRemoteState(); }}
+        />
+      )}
     </div>
   );
 }

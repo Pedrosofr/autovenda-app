@@ -48,7 +48,9 @@ describe("AppLayout", () => {
       </MemoryRouter>,
     );
 
+    expect(screen.getByText("Vendas")).toBeInTheDocument();
     expect(screen.getByText("Equipe")).toBeInTheDocument();
+    expect(screen.getByText("NF-e")).toBeInTheDocument();
     expect(screen.queryByText("Lojas")).not.toBeInTheDocument();
   });
 });

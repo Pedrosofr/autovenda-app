@@ -20,6 +20,9 @@ dist-ssr
 data/*.sqlite
 data/*.sqlite-shm
 data/*.sqlite-wal
+output/
+.lt*
+*.bak
 
 # Vite timestamp cache
 vite.config.ts.timestamp-*

@@ -61,6 +61,8 @@ export interface AuthenticatedSession {
   planCode: string | null;
   salesGoalMonthly: number | null;
   sellerPermissions: SellerPermissions;
+  nfeEnabled: boolean;
+  nfeConfigured: boolean;
   expiresAt: string;
 }
 
@@ -278,6 +280,12 @@ function runMigrations(db: DatabaseSync) {
   }
   if (!hasColumn(db, "memberships", "seller_permissions")) {
     db.exec("alter table memberships add column seller_permissions text;");
+  }
+  if (!hasColumn(db, "tenants", "nfe_enabled")) {
+    db.exec("alter table tenants add column nfe_enabled integer not null default 0;");
+  }
+  if (!hasColumn(db, "tenants", "nfe_config_json")) {
+    db.exec("alter table tenants add column nfe_config_json text;");
   }
 }
 
@@ -614,7 +622,12 @@ function getMembershipForUser(db: DatabaseSync, userId: number) {
       t.slug as tenant_slug,
       t.status as tenant_status,
       t.trial_ends_at,
-      t.plan_code
+      t.plan_code,
+      t.nfe_enabled,
+      case
+        when t.nfe_config_json is not null and trim(t.nfe_config_json) <> '' then 1
+        else 0
+      end as nfe_configured
     from memberships m
     join tenants t on t.id = m.tenant_id
     where m.user_id = ? and m.active = 1
@@ -631,6 +644,8 @@ function getMembershipForUser(db: DatabaseSync, userId: number) {
     tenant_status: TenantStatus;
     trial_ends_at: string;
     plan_code: string;
+    nfe_enabled: number;
+    nfe_configured: number;
   } | undefined;
 }
 
@@ -724,6 +739,8 @@ function buildSessionPayload(input: {
         tenant_status: TenantStatus;
         trial_ends_at: string;
         plan_code: string;
+        nfe_enabled: number;
+        nfe_configured: number;
       }
     | undefined;
   expiresAt: string;
@@ -742,6 +759,8 @@ function buildSessionPayload(input: {
     tenantStatus: input.membership?.tenant_status ?? null,
     trialEndsAt: input.membership?.trial_ends_at ?? null,
     planCode: input.membership?.plan_code ?? null,
+    nfeEnabled: !!input.membership?.nfe_enabled,
+    nfeConfigured: !!input.membership?.nfe_configured,
     salesGoalMonthly: input.membership?.sales_goal_monthly ?? null,
     sellerPermissions: role === "seller"
       ? parseSellerPermissions(input.membership?.seller_permissions)
@@ -778,7 +797,12 @@ export function getSessionFromCookie(cookieHeader: string | undefined) {
       t.slug as tenant_slug,
       t.status as tenant_status,
       t.trial_ends_at,
-      t.plan_code
+      t.plan_code,
+      t.nfe_enabled,
+      case
+        when t.nfe_config_json is not null and trim(t.nfe_config_json) <> '' then 1
+        else 0
+      end as nfe_configured
     from sessions s
     join users u on u.id = s.user_id
     left join memberships m on m.id = s.membership_id
@@ -802,6 +826,8 @@ export function getSessionFromCookie(cookieHeader: string | undefined) {
     tenant_status: TenantStatus | null;
     trial_ends_at: string | null;
     plan_code: string | null;
+    nfe_enabled: number | null;
+    nfe_configured: number | null;
   } | undefined;
 
   if (!row || row.revoked_at || new Date(row.expires_at).getTime() <= Date.now()) {
@@ -828,6 +854,8 @@ export function getSessionFromCookie(cookieHeader: string | undefined) {
       tenantStatus: row.tenant_status,
       trialEndsAt: row.trial_ends_at,
       planCode: row.plan_code,
+      nfeEnabled: !!row.nfe_enabled,
+      nfeConfigured: !!row.nfe_configured,
       salesGoalMonthly: row.sales_goal_monthly,
       sellerPermissions: blockedRole === "seller"
         ? parseSellerPermissions(row.seller_permissions)
@@ -850,6 +878,8 @@ export function getSessionFromCookie(cookieHeader: string | undefined) {
     tenantStatus: row.tenant_status,
     trialEndsAt: row.trial_ends_at,
     planCode: row.plan_code,
+    nfeEnabled: !!row.nfe_enabled,
+    nfeConfigured: !!row.nfe_configured,
     salesGoalMonthly: row.sales_goal_monthly,
     sellerPermissions: activeRole === "seller"
       ? parseSellerPermissions(row.seller_permissions)
@@ -872,6 +902,7 @@ export function listStores() {
       t.plan_code,
       t.max_users,
       t.trial_ends_at,
+      t.nfe_enabled,
       (
         select count(*)
         from memberships m
@@ -1178,6 +1209,94 @@ export function resetPasswordWithToken(token: string, newPassword: string): bool
   return true;
 }
 
+export interface NfeConfigData {
+  focusApiKey: string;
+  ambiente: "homologacao" | "producao";
+  cnpj: string;
+  razaoSocial: string;
+  nomeFantasia?: string;
+  inscricaoEstadual: string;
+  regimeTributario: "1" | "2" | "3";
+  logradouro: string;
+  numero: string;
+  complemento?: string;
+  bairro: string;
+  municipio: string;
+  codigoMunicipio: string;
+  uf: string;
+  cep: string;
+  telefone?: string;
+  email?: string;
+}
+
+export function getNfeConfig(tenantId: number): NfeConfigData | null {
+  const row = getDatabase()
+    .prepare("select nfe_config_json from tenants where id = ?")
+    .get(tenantId) as { nfe_config_json: string | null } | undefined;
+  if (!row?.nfe_config_json) return null;
+  return parseJson<NfeConfigData | null>(row.nfe_config_json, null);
+}
+
+export function updateNfeConfig(actor: AuthenticatedSession, config: NfeConfigData) {
+  if (!actor.tenantId || actor.role !== "owner") {
+    throw new Error("Somente o owner pode configurar NF-e.");
+  }
+  getDatabase()
+    .prepare("update tenants set nfe_config_json = ?, updated_at = ? where id = ?")
+    .run(JSON.stringify(config), nowIso(), actor.tenantId);
+  writeAuditLog(getDatabase(), {
+    tenantId: actor.tenantId,
+    actorUserId: actor.userId,
+    action: "tenant.nfe_config_updated",
+  });
+}
+
+export function toggleNfeEnabled(storeId: number, enabled: boolean) {
+  const db = getDatabase();
+  const tenant = db.prepare("select id from tenants where id = ?").get(storeId) as { id: number } | undefined;
+  if (!tenant) throw new Error("Loja nao encontrada.");
+  db.prepare("update tenants set nfe_enabled = ?, updated_at = ? where id = ?")
+    .run(enabled ? 1 : 0, nowIso(), storeId);
+  writeAuditLog(db, {
+    tenantId: storeId,
+    action: "tenant.nfe_toggled",
+    payload: { enabled },
+  });
+}
+
+export function updateVendaNfe(
+  tenantId: number,
+  vendaId: string,
+  nfe: Record<string, unknown>,
+): Record<string, unknown> | null {
+  const db = getDatabase();
+  const row = db
+    .prepare("select vendas_json from tenant_state where tenant_id = ?")
+    .get(tenantId) as { vendas_json: string } | undefined;
+  if (!row) throw new Error("Estado da loja nao encontrado.");
+
+  const vendas = parseJson<Array<Record<string, unknown>>>(row.vendas_json, []);
+  const idx = vendas.findIndex((v) => v.id === vendaId);
+  if (idx === -1) throw new Error("Venda nao encontrada.");
+
+  const currentNfe =
+    vendas[idx].nfe && typeof vendas[idx].nfe === "object" && !Array.isArray(vendas[idx].nfe)
+      ? vendas[idx].nfe as Record<string, unknown>
+      : {};
+
+  vendas[idx] = {
+    ...vendas[idx],
+    nfe: {
+      ...currentNfe,
+      ...nfe,
+    },
+  };
+  db.prepare("update tenant_state set vendas_json = ?, updated_at = ? where tenant_id = ?")
+    .run(JSON.stringify(vendas), nowIso(), tenantId);
+
+  return vendas[idx];
+}
+
 export function sessionToResponse(session: AuthenticatedSession) {
   const daysRemaining = session.trialEndsAt
     ? Math.max(0, Math.ceil((new Date(session.trialEndsAt).getTime() - Date.now()) / 86_400_000))
@@ -1201,6 +1320,8 @@ export function sessionToResponse(session: AuthenticatedSession) {
           status: session.tenantStatus,
           trialEndsAt: session.trialEndsAt,
           planCode: session.planCode,
+          nfeEnabled: session.nfeEnabled,
+          nfeConfigured: session.nfeConfigured,
           daysRemaining,
         }
       : null,

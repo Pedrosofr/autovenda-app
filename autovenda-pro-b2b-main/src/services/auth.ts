@@ -32,6 +32,8 @@ export interface AuthTenant {
   status: TenantStatus;
   trialEndsAt: string | null;
   planCode: string | null;
+  nfeEnabled?: boolean;
+  nfeConfigured?: boolean;
   daysRemaining: number | null;
 }
 

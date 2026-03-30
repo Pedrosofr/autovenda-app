@@ -1,10 +1,12 @@
 import {
   Building2,
   Car,
+  FileText,
   HeartHandshake,
   LayoutDashboard,
   LogOut,
   Menu,
+  Receipt,
   Search,
   Users,
   Wrench,
@@ -32,6 +34,7 @@ const APP_NAV_ITEMS: { title: string; url: string; icon: React.ElementType; perm
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "CRM Leads", url: "/crm", icon: Users, permission: "verCRM" },
   { title: "Estoque", url: "/estoque", icon: Car, permission: "verEstoque" },
+  { title: "Vendas", url: "/vendas", icon: Receipt, permission: "verEstoque" },
   { title: "Consulta Veicular", url: "/consulta", icon: Search, permission: "verConsulta" },
   { title: "P\u00f3s-Venda", url: "/pos-venda", icon: HeartHandshake, permission: "verPosVenda" },
   { title: "Custos", url: "/custos", icon: Wrench, permission: "verCustos" },
@@ -83,9 +86,12 @@ function SidebarNav() {
     : APP_NAV_ITEMS.filter((item) =>
         !item.permission || user?.role !== "seller" || permissions.sellerPermissions[item.permission],
       );
-  const navItems = !isPlatformAdmin && permissions.canManageTeam
+  const withTeam = !isPlatformAdmin && permissions.canManageTeam
     ? [...baseItems, { title: "Equipe", url: "/equipe", icon: Users, permission: undefined }]
     : baseItems;
+  const navItems = !isPlatformAdmin && user?.role === "owner"
+    ? [...withTeam, { title: "NF-e", url: "/nfe", icon: FileText, permission: undefined }]
+    : withTeam;
 
   const profileLabel = isPlatformAdmin ? "Admin da plataforma" : tenant?.name ?? user?.name ?? "Equipe";
 

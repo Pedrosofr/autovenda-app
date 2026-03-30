@@ -12,6 +12,7 @@ export interface Veiculo {
   fotos: string[];
   fotosDestaque: number[];
   origem?: "estoque" | "simulacao_custos";
+  custosAtivo?: boolean;
   modelo: string;
   marca?: string;
   ano: string;
@@ -116,12 +117,53 @@ export const defaultMemoriaLoja: MemoriaLoja = {
   atualizadoEm: new Date().toISOString(),
 };
 
+export type NfeStatus = "pendente" | "autorizada" | "cancelada" | "erro";
+
+export interface NfeDestinatario {
+  nome: string;
+  documento: string;
+  email?: string | null;
+  logradouro: string;
+  numero: string;
+  complemento?: string | null;
+  bairro: string;
+  municipio: string;
+  codigoMunicipio?: string | null;
+  uf: string;
+  cep: string;
+  indicadorInscricaoEstadual: "1" | "2" | "9";
+  inscricaoEstadual?: string | null;
+}
+
+export interface NfeInfo {
+  ref?: string;
+  status: NfeStatus;
+  numero?: string | null;
+  serie?: string | null;
+  chave?: string | null;
+  danfeUrl?: string | null;
+  xmlUrl?: string | null;
+  emitidaEm?: string | null;
+  canceladaEm?: string | null;
+  justificativa?: string;
+  erro?: string | null;
+  mensagemSefaz?: string | null;
+  focusStatus?: string | null;
+  formaPagamento?: string | null;
+  valorTotal?: number | null;
+  descricaoProduto?: string | null;
+  ambiente?: "homologacao" | "producao" | null;
+  ultimaAtualizacaoEm?: string | null;
+  destinatario?: NfeDestinatario | null;
+}
+
 export interface Venda {
   id: string;
   veiculoId: string;
   vendedorId: string;
   valor: number;
   data: string;
+  nfe?: NfeInfo;
 }
 
 export interface ConsultaVeicular {

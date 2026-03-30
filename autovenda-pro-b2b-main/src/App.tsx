@@ -15,12 +15,14 @@ const Login = lazy(() => import("./pages/Login"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const CRMKanban = lazy(() => import("./pages/CRMKanban"));
 const Estoque = lazy(() => import("./pages/Estoque"));
+const Vendas = lazy(() => import("./pages/Vendas"));
 const ConsultaVeicular = lazy(() => import("./pages/ConsultaVeicular"));
 const PosVenda = lazy(() => import("./pages/PosVenda"));
 const Custos = lazy(() => import("./pages/Custos"));
 const Creditos = lazy(() => import("./pages/Creditos"));
 const PlatformConsole = lazy(() => import("./pages/PlatformConsole"));
 const TeamManagement = lazy(() => import("./pages/TeamManagement"));
+const NFeConfig = lazy(() => import("./pages/NFeConfig"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const RouteFallback = () => (
@@ -48,11 +50,13 @@ const App = () => (
                 <Route path="/dashboard" element={<ProtectedRoute allowRoles={["owner", "seller"]}><AppLayout><Dashboard /></AppLayout></ProtectedRoute>} />
                 <Route path="/crm" element={<ProtectedRoute allowRoles={["owner", "seller"]} requiredPermission="verCRM"><AppLayout><CRMKanban /></AppLayout></ProtectedRoute>} />
                 <Route path="/estoque" element={<ProtectedRoute allowRoles={["owner", "seller"]} requiredPermission="verEstoque"><AppLayout><Estoque /></AppLayout></ProtectedRoute>} />
+                <Route path="/vendas" element={<ProtectedRoute allowRoles={["owner", "seller"]} requiredPermission="verEstoque"><AppLayout><Vendas /></AppLayout></ProtectedRoute>} />
                 <Route path="/consulta" element={<ProtectedRoute allowRoles={["owner", "seller"]} requiredPermission="verConsulta"><AppLayout><ConsultaVeicular /></AppLayout></ProtectedRoute>} />
                 <Route path="/pos-venda" element={<ProtectedRoute allowRoles={["owner", "seller"]} requiredPermission="verPosVenda"><AppLayout><PosVenda /></AppLayout></ProtectedRoute>} />
                 <Route path="/custos" element={<ProtectedRoute allowRoles={["owner", "seller"]} requiredPermission="verCustos"><AppLayout><Custos /></AppLayout></ProtectedRoute>} />
                 <Route path="/creditos" element={<ProtectedRoute allowRoles={["owner", "seller"]} requiredPermission="verCreditos"><AppLayout><Creditos /></AppLayout></ProtectedRoute>} />
                 <Route path="/equipe" element={<ProtectedRoute allowRoles={["owner"]}><AppLayout><TeamManagement /></AppLayout></ProtectedRoute>} />
+                <Route path="/nfe" element={<ProtectedRoute allowRoles={["owner"]}><AppLayout><NFeConfig /></AppLayout></ProtectedRoute>} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </Suspense>

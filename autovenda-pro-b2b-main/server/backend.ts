@@ -21,9 +21,14 @@ import {
   updateStoreStatus,
   updateTenantAppState,
   updateMemberPermissions,
+  getNfeConfig,
+  updateNfeConfig,
+  toggleNfeEnabled,
+  updateVendaNfe,
   type AuthenticatedSession,
   type TenantStatus,
   type SellerPermissions,
+  type NfeConfigData,
 } from "./database";
 
 const require = createRequire(import.meta.url);
@@ -368,14 +373,13 @@ async function handlePlatformStoreUpdate(request: RequestShape, headers: Record<
   const extendTrialDays = body.extendTrialDays === undefined ? undefined : Number(body.extendTrialDays);
   const trialDays = body.trialDays === undefined ? undefined : Number(body.trialDays);
   const maxUsers = body.maxUsers === undefined ? undefined : Number(body.maxUsers);
+  const nfeEnabled = body.nfeEnabled === undefined ? undefined : Boolean(body.nfeEnabled);
 
   try {
-    updateStoreStatus(storeId, {
-      status,
-      extendTrialDays,
-      trialDays,
-      maxUsers,
-    });
+    updateStoreStatus(storeId, { status, extendTrialDays, trialDays, maxUsers });
+    if (nfeEnabled !== undefined) {
+      toggleNfeEnabled(storeId, nfeEnabled);
+    }
     return json(200, { success: true, stores: listStores() });
   } catch (error) {
     return json(400, { error: error instanceof Error ? error.message : "Nao foi possivel atualizar a loja." });
@@ -812,6 +816,588 @@ async function handleFipeModelSuggestions(request: RequestShape, headers: Record
   }
 }
 
+// ─── NF-e helpers ────────────────────────────────────────────────────────────
+
+function focusNfeBaseUrl(ambiente: "homologacao" | "producao") {
+  return ambiente === "producao"
+    ? "https://api.focusnfe.com.br/v2"
+    : "https://homologacao.focusnfe.com.br/v2";
+}
+
+function focusNfeAuth(apiKey: string) {
+  return "Basic " + Buffer.from(apiKey + ":").toString("base64");
+}
+
+function cleanCnpjCpf(value: string) {
+  return value.replace(/[^\d]/g, "");
+}
+
+function cleanCep(value: string) {
+  return value.replace(/[^\d]/g, "");
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
+
+function maskFocusApiKey(value: string) {
+  if (!value) return "";
+  if (value.length <= 8) return "*".repeat(value.length);
+  return `${value.slice(0, 5)}${"*".repeat(Math.max(4, value.length - 9))}${value.slice(-4)}`;
+}
+
+function extractFocusError(body: Record<string, unknown>) {
+  const erros = body.erros;
+  if (Array.isArray(erros) && erros.length > 0) {
+    const first = asRecord(erros[0]);
+    if (first?.mensagem) return String(first.mensagem);
+  }
+  return String(body.mensagem_sefaz ?? body.mensagem ?? body.error ?? "Erro ao processar NF-e.");
+}
+
+function mapFocusNfeStatus(focusStatus: string, httpStatus: number) {
+  if (focusStatus === "autorizado") return "autorizada";
+  if (focusStatus === "cancelado" || focusStatus === "nfe_cancelada") return "cancelada";
+  if (focusStatus === "processando_autorizacao") return "pendente";
+  if (focusStatus === "erro_autorizacao" || focusStatus === "erro_cancelamento") return "erro";
+  return httpStatus >= 400 ? "erro" : "pendente";
+}
+
+function resolveFocusAssetUrl(baseUrl: string, value: unknown) {
+  if (typeof value !== "string" || !value.trim()) return null;
+  try {
+    return new URL(value, `${baseUrl}/`).toString();
+  } catch {
+    return value;
+  }
+}
+
+function buildNfeDescription(veiculo: Record<string, unknown>) {
+  const descricao = [
+    String(veiculo.modelo ?? "").trim(),
+    String(veiculo.ano ?? "").trim(),
+    String(veiculo.cor ?? "").trim(),
+  ]
+    .filter(Boolean)
+    .join(" - ")
+    .trim();
+  return (descricao || "VEICULO USADO").slice(0, 120);
+}
+
+function getVendaContext(session: AuthenticatedSession, vendaId: string) {
+  const state = getTenantAppState(session);
+  const venda = state.vendas.find((item) => item.id === vendaId);
+  if (!venda) {
+    return { error: json(404, { error: "Venda nao encontrada." }) };
+  }
+
+  const veiculo = state.veiculos.find((item) => item.id === venda.veiculoId);
+  if (!veiculo) {
+    return { error: json(404, { error: "Veiculo da venda nao encontrado." }) };
+  }
+
+  return { venda, veiculo };
+}
+
+function buildPublicNfeConfig(config: NfeConfigData | null) {
+  if (!config) return null;
+  const { focusApiKey, ...rest } = config;
+  return {
+    ...rest,
+    focusApiKey: "",
+    hasSavedApiKey: !!focusApiKey,
+    focusApiKeyMasked: focusApiKey ? maskFocusApiKey(focusApiKey) : "",
+  };
+}
+
+function normalizeNfeConfigInput(body: Partial<NfeConfigData>, currentConfig: NfeConfigData | null): NfeConfigData {
+  const focusApiKey = String(body.focusApiKey ?? "").trim() || (currentConfig?.focusApiKey ?? "");
+
+  return {
+    focusApiKey,
+    ambiente: body.ambiente === "producao" ? "producao" : "homologacao",
+    cnpj: String(body.cnpj ?? "").trim(),
+    razaoSocial: String(body.razaoSocial ?? "").trim(),
+    nomeFantasia: String(body.nomeFantasia ?? "").trim() || undefined,
+    inscricaoEstadual: String(body.inscricaoEstadual ?? "").trim(),
+    regimeTributario: body.regimeTributario === "2" || body.regimeTributario === "3" ? body.regimeTributario : "1",
+    logradouro: String(body.logradouro ?? "").trim(),
+    numero: String(body.numero ?? "").trim(),
+    complemento: String(body.complemento ?? "").trim() || undefined,
+    bairro: String(body.bairro ?? "").trim(),
+    municipio: String(body.municipio ?? "").trim(),
+    codigoMunicipio: String(body.codigoMunicipio ?? "").replace(/[^\d]/g, "").slice(0, 7),
+    uf: String(body.uf ?? "").trim().toUpperCase().slice(0, 2),
+    cep: cleanCep(String(body.cep ?? "")).slice(0, 8),
+    telefone: cleanCnpjCpf(String(body.telefone ?? "")).slice(0, 14) || undefined,
+    email: String(body.email ?? "").trim() || undefined,
+  };
+}
+
+function buildNfeInfoFromFocus(input: {
+  config: NfeConfigData;
+  ref: string;
+  focusBody: Record<string, unknown>;
+  httpStatus: number;
+  valorTotal: number;
+  descricaoProduto: string;
+  formaPagamento: string;
+  destinatario: Record<string, unknown>;
+  existingNfe?: Record<string, unknown> | null;
+  cancelledNow?: boolean;
+  justificativa?: string;
+}) {
+  const focusStatus = String(input.focusBody.status ?? input.focusBody.codigo ?? "processando_autorizacao");
+  const status = mapFocusNfeStatus(focusStatus, input.httpStatus);
+  const erro = status === "erro" ? extractFocusError(input.focusBody) : null;
+  const existing = input.existingNfe ?? {};
+  const nowIso = new Date().toISOString();
+  const dataEmissao = typeof input.focusBody.data_emissao === "string" ? input.focusBody.data_emissao : null;
+
+  return {
+    ref: input.ref,
+    status,
+    focusStatus,
+    numero: input.focusBody.numero ?? existing.numero ?? null,
+    serie: input.focusBody.serie ?? existing.serie ?? null,
+    chave: input.focusBody.chave_nfe ?? existing.chave ?? null,
+    danfeUrl: resolveFocusAssetUrl(focusNfeBaseUrl(input.config.ambiente), input.focusBody.caminho_danfe) ?? existing.danfeUrl ?? null,
+    xmlUrl:
+      resolveFocusAssetUrl(focusNfeBaseUrl(input.config.ambiente), input.focusBody.caminho_xml_nota_fiscal)
+      ?? existing.xmlUrl
+      ?? null,
+    emitidaEm:
+      status === "autorizada"
+        ? (existing.emitidaEm ?? dataEmissao ?? nowIso)
+        : (existing.emitidaEm ?? null),
+    canceladaEm:
+      status === "cancelada"
+        ? (existing.canceladaEm ?? (input.cancelledNow ? nowIso : null))
+        : (existing.canceladaEm ?? null),
+    justificativa: input.justificativa ?? existing.justificativa ?? null,
+    erro,
+    mensagemSefaz: input.focusBody.mensagem_sefaz ?? existing.mensagemSefaz ?? null,
+    valorTotal: input.valorTotal,
+    descricaoProduto: input.descricaoProduto,
+    formaPagamento: input.formaPagamento,
+    ambiente: input.config.ambiente,
+    ultimaAtualizacaoEm: nowIso,
+    destinatario: input.destinatario,
+  };
+}
+
+async function handleNfeConfig(request: RequestShape, headers: Record<string, string>): Promise<ResponseShape> {
+  const sessionResult = requireSession(headers);
+  if ("error" in sessionResult) return sessionResult.error;
+  const { session } = sessionResult;
+
+  if (!session.tenantId) {
+    return json(400, { error: "Usuario sem loja vinculada." });
+  }
+
+  if (request.method === "GET") {
+    if (session.role !== "owner") {
+      return json(403, { error: "Somente o owner pode visualizar a configuracao NF-e." });
+    }
+
+    const config = getNfeConfig(session.tenantId);
+    return json(200, {
+      config: buildPublicNfeConfig(config),
+      enabled: session.nfeEnabled,
+      configured: session.nfeConfigured,
+    });
+  }
+
+  if (request.method === "PUT") {
+    if (session.role !== "owner") {
+      return json(403, { error: "Somente o owner pode configurar NF-e." });
+    }
+    const currentConfig = getNfeConfig(session.tenantId);
+    const body = (request.body ?? {}) as Partial<NfeConfigData>;
+    const nextConfig = normalizeNfeConfigInput(body, currentConfig);
+    const required: (keyof NfeConfigData)[] = [
+      "focusApiKey", "ambiente", "cnpj", "razaoSocial",
+      "inscricaoEstadual", "regimeTributario",
+      "logradouro", "numero", "bairro", "municipio", "codigoMunicipio", "uf", "cep",
+    ];
+    for (const field of required) {
+      if (!nextConfig[field]) {
+        return json(400, { error: `Campo obrigatorio: ${field}` });
+      }
+    }
+    const cnpjClean = cleanCnpjCpf(nextConfig.cnpj ?? "");
+    if (cnpjClean.length !== 14) {
+      return json(400, { error: "CNPJ invalido. Informe 14 digitos." });
+    }
+    if (nextConfig.codigoMunicipio.length !== 7) {
+      return json(400, { error: "Codigo do municipio invalido. Informe os 7 digitos do IBGE." });
+    }
+    if (nextConfig.cep.length !== 8) {
+      return json(400, { error: "CEP invalido. Informe 8 digitos." });
+    }
+    try {
+      updateNfeConfig(session, nextConfig);
+      return json(200, { success: true });
+    } catch (error) {
+      return json(400, { error: error instanceof Error ? error.message : "Erro ao salvar configuracao." });
+    }
+  }
+
+  return json(405, { error: "Metodo nao permitido." }, { Allow: "GET, PUT" });
+}
+
+async function handleNfeEmitir(request: RequestShape, headers: Record<string, string>): Promise<ResponseShape> {
+  if (request.method !== "POST") {
+    return json(405, { error: "Metodo nao permitido." }, { Allow: "POST" });
+  }
+
+  const sessionResult = requireSession(headers);
+  if ("error" in sessionResult) return sessionResult.error;
+  const { session } = sessionResult;
+
+  if (!session.tenantId) {
+    return json(400, { error: "Usuario sem loja vinculada." });
+  }
+  if (!session.nfeEnabled) {
+    return json(403, { error: "NF-e nao habilitado para esta loja." });
+  }
+
+  const config = getNfeConfig(session.tenantId);
+  if (!config) {
+    return json(400, { error: "Configure os dados da empresa antes de emitir NF-e." });
+  }
+
+  const body = (request.body ?? {}) as Record<string, unknown>;
+  const vendaId = String(body.vendaId ?? "").trim();
+  const compradorNome = String(body.compradorNome ?? "").trim();
+  const compradorCpfCnpj = cleanCnpjCpf(String(body.compradorCpfCnpj ?? ""));
+  const compradorEmail = String(body.compradorEmail ?? "").trim();
+  const compradorLogradouro = String(body.compradorLogradouro ?? "").trim();
+  const compradorNumero = String(body.compradorNumero ?? "").trim();
+  const compradorComplemento = String(body.compradorComplemento ?? "").trim();
+  const compradorBairro = String(body.compradorBairro ?? "").trim();
+  const compradorMunicipio = String(body.compradorMunicipio ?? "").trim();
+  const compradorCodigoMunicipio = cleanCnpjCpf(String(body.compradorCodigoMunicipio ?? "")).slice(0, 7);
+  const compradorUf = String(body.compradorUf ?? "").trim().toUpperCase().slice(0, 2);
+  const compradorCep = cleanCep(String(body.compradorCep ?? "")).slice(0, 8);
+  const indicadorInscricaoEstadualDestinatario = String(body.indicadorInscricaoEstadualDestinatario ?? "9").trim();
+  const inscricaoEstadualDestinatario = String(body.inscricaoEstadualDestinatario ?? "").trim();
+  const formaPagamento = String(body.formaPagamento ?? "01").trim();
+
+  const vendaResult = getVendaContext(session, vendaId);
+  if ("error" in vendaResult) return vendaResult.error;
+  const { venda, veiculo } = vendaResult;
+
+  const existingNfe = asRecord(venda.nfe) ?? null;
+  if (existingNfe?.ref && existingNfe.status !== "erro") {
+    return json(200, { success: true, alreadyExists: true, nfe: existingNfe, venda });
+  }
+
+  if (!vendaId || !compradorNome || !compradorCpfCnpj) {
+    return json(400, { error: "Informe ID da venda, nome e CPF/CNPJ do comprador." });
+  }
+  if (compradorCpfCnpj.length !== 11 && compradorCpfCnpj.length !== 14) {
+    return json(400, { error: "CPF deve ter 11 digitos ou CNPJ 14 digitos." });
+  }
+  if (!compradorLogradouro || !compradorNumero || !compradorBairro || !compradorMunicipio || !compradorUf) {
+    return json(400, { error: "Preencha o endereco do comprador para emitir a NF-e." });
+  }
+  if (compradorCep.length !== 8) {
+    return json(400, { error: "CEP do comprador invalido. Informe 8 digitos." });
+  }
+  if (!["1", "2", "9"].includes(indicadorInscricaoEstadualDestinatario)) {
+    return json(400, { error: "Indicador de inscricao estadual do destinatario invalido." });
+  }
+  if (indicadorInscricaoEstadualDestinatario === "1" && !inscricaoEstadualDestinatario) {
+    return json(400, { error: "Informe a inscricao estadual do comprador contribuinte." });
+  }
+
+  const valorTotal = Number(venda.valor ?? 0);
+  if (valorTotal <= 0) {
+    return json(400, { error: "Valor da venda invalido." });
+  }
+
+  const descricaoProduto = buildNfeDescription(veiculo as Record<string, unknown>);
+
+  const ref = typeof existingNfe?.ref === "string" && existingNfe.ref
+    ? existingNfe.ref
+    : `nfe_${session.tenantId}_${vendaId.replace(/[^a-z0-9]/gi, "").slice(0, 24)}`;
+  const baseUrl = focusNfeBaseUrl(config.ambiente);
+  const authHeader = focusNfeAuth(config.focusApiKey);
+
+  const destinatario = {
+    nome: compradorNome,
+    documento: compradorCpfCnpj,
+    email: compradorEmail || null,
+    logradouro: compradorLogradouro,
+    numero: compradorNumero,
+    complemento: compradorComplemento || null,
+    bairro: compradorBairro,
+    municipio: compradorMunicipio,
+    codigoMunicipio: compradorCodigoMunicipio || null,
+    uf: compradorUf,
+    cep: compradorCep,
+    indicadorInscricaoEstadual: indicadorInscricaoEstadualDestinatario,
+    inscricaoEstadual: inscricaoEstadualDestinatario || null,
+  };
+
+  const nfePayload = {
+    natureza_operacao: "VENDA DE VEICULO USADO",
+    finalidade_emissao: "1",
+    consumidor_final: "1",
+    presenca_comprador: "1",
+    modalidade_frete: "9",
+    cnpj_emitente: cleanCnpjCpf(config.cnpj),
+    nome_emitente: config.razaoSocial,
+    ...(config.nomeFantasia ? { nome_fantasia_emitente: config.nomeFantasia } : {}),
+    logradouro_emitente: config.logradouro,
+    numero_emitente: config.numero,
+    ...(config.complemento ? { complemento_emitente: config.complemento } : {}),
+    bairro_emitente: config.bairro,
+    municipio_emitente: config.municipio,
+    codigo_municipio_emitente: config.codigoMunicipio,
+    uf_emitente: config.uf,
+    cep_emitente: cleanCep(config.cep),
+    inscricao_estadual_emitente: config.inscricaoEstadual,
+    regime_tributario_emitente: config.regimeTributario,
+    ...(config.telefone ? { telefone_emitente: cleanCnpjCpf(config.telefone) } : {}),
+    ...(compradorCpfCnpj.length === 11 ? { cpf_destinatario: compradorCpfCnpj } : { cnpj_destinatario: compradorCpfCnpj }),
+    nome_destinatario: compradorNome,
+    logradouro_destinatario: compradorLogradouro,
+    numero_destinatario: compradorNumero,
+    ...(compradorComplemento ? { complemento_destinatario: compradorComplemento } : {}),
+    bairro_destinatario: compradorBairro,
+    municipio_destinatario: compradorMunicipio,
+    ...(compradorCodigoMunicipio ? { codigo_municipio_destinatario: compradorCodigoMunicipio } : {}),
+    uf_destinatario: compradorUf,
+    cep_destinatario: compradorCep,
+    indicador_inscricao_estadual_destinatario: indicadorInscricaoEstadualDestinatario,
+    ...(inscricaoEstadualDestinatario ? { inscricao_estadual_destinatario: inscricaoEstadualDestinatario } : {}),
+    ...(compradorEmail ? { email_destinatario: compradorEmail } : {}),
+    valor_produtos: valorTotal.toFixed(2),
+    valor_total: valorTotal.toFixed(2),
+    items: [
+      {
+        numero_item: "1",
+        codigo_produto: String(veiculo.id ?? vendaId).slice(0, 60),
+        descricao: descricaoProduto.slice(0, 120),
+        codigo_ncm: "87032190",
+        cfop: "5102",
+        unidade_comercial: "UN",
+        quantidade_comercial: "1.00",
+        valor_unitario_comercial: valorTotal.toFixed(2),
+        valor_bruto: valorTotal.toFixed(2),
+        icms_origem: "0",
+        icms_situacao_tributaria: "400",
+        pis_situacao_tributaria: "07",
+        cofins_situacao_tributaria: "07",
+      },
+    ],
+    formas_pagamento: [
+      {
+        forma_pagamento: formaPagamento,
+        valor_pagamento: valorTotal.toFixed(2),
+      },
+    ],
+  };
+
+  try {
+    const focusRes = await fetch(`${baseUrl}/nfe?ref=${encodeURIComponent(ref)}`, {
+      method: "POST",
+      headers: {
+        "Authorization": authHeader,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(nfePayload),
+    });
+
+    const focusBody = await focusRes.json().catch(() => ({})) as Record<string, unknown>;
+
+    if (focusRes.status >= 500) {
+      return json(502, { error: "Servico de NF-e indisponivel. Tente novamente." });
+    }
+
+    const nfeInfo = buildNfeInfoFromFocus({
+      config,
+      ref,
+      focusBody,
+      httpStatus: focusRes.status,
+      valorTotal,
+      descricaoProduto,
+      formaPagamento,
+      destinatario,
+      existingNfe,
+    });
+
+    const vendaAtualizada = updateVendaNfe(session.tenantId, vendaId, nfeInfo);
+    return json(nfeInfo.status === "pendente" ? 202 : 200, {
+      success: true,
+      alreadyExists: false,
+      nfe: nfeInfo,
+      venda: vendaAtualizada,
+    });
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : "Erro ao emitir NF-e.";
+    return json(500, { error: msg });
+  }
+}
+
+async function handleNfeStatus(request: RequestShape, headers: Record<string, string>): Promise<ResponseShape> {
+  if (request.method !== "GET") {
+    return json(405, { error: "Metodo nao permitido." }, { Allow: "GET" });
+  }
+
+  const sessionResult = requireSession(headers);
+  if ("error" in sessionResult) return sessionResult.error;
+  const { session } = sessionResult;
+
+  if (!session.tenantId || !session.nfeEnabled) {
+    return json(403, { error: "NF-e nao habilitado para esta loja." });
+  }
+
+  const config = getNfeConfig(session.tenantId);
+  if (!config) {
+    return json(400, { error: "NF-e nao configurado." });
+  }
+
+  const url = new URL(`http://localhost${request.path}`);
+  const vendaId = (url.searchParams.get("vendaId") ?? "").trim();
+  const queryRef = (url.searchParams.get("ref") ?? "").trim();
+
+  let ref = queryRef;
+  let vendaNfe: Record<string, unknown> | null = null;
+
+  if (vendaId) {
+    const vendaResult = getVendaContext(session, vendaId);
+    if ("error" in vendaResult) return vendaResult.error;
+    vendaNfe = asRecord(vendaResult.venda.nfe);
+    ref = ref || String(vendaNfe?.ref ?? "");
+  }
+
+  if (!ref) return json(400, { error: "Informe o ref da NF-e." });
+
+  try {
+    const focusRes = await fetch(
+      `${focusNfeBaseUrl(config.ambiente)}/nfe/${encodeURIComponent(ref)}?completa=1`,
+      { headers: { Authorization: focusNfeAuth(config.focusApiKey) } },
+    );
+    const focusBody = await focusRes.json().catch(() => ({})) as Record<string, unknown>;
+
+    if (!focusRes.ok && focusRes.status !== 404) {
+      return json(focusRes.status, { error: extractFocusError(focusBody) });
+    }
+    if (focusRes.status === 404) {
+      return json(404, { error: "NF-e nao encontrada na Focus." });
+    }
+
+    if (session.tenantId && vendaId) {
+      const existingDestinatario = asRecord(vendaNfe?.destinatario) ?? {};
+      const nfeInfo = buildNfeInfoFromFocus({
+        config,
+        ref,
+        focusBody,
+        httpStatus: focusRes.status,
+        valorTotal: Number(vendaNfe?.valorTotal ?? 0),
+        descricaoProduto: String(vendaNfe?.descricaoProduto ?? ""),
+        formaPagamento: String(vendaNfe?.formaPagamento ?? "01"),
+        destinatario: existingDestinatario,
+        existingNfe: vendaNfe,
+      });
+      const vendaAtualizada = updateVendaNfe(session.tenantId, vendaId, nfeInfo);
+      return json(200, { success: true, nfe: nfeInfo, venda: vendaAtualizada });
+    }
+
+    return json(200, { success: true, ref, focus: focusBody });
+  } catch (error) {
+    return json(502, { error: "Servico de NF-e indisponivel." });
+  }
+}
+
+async function handleNfeCancelar(request: RequestShape, headers: Record<string, string>): Promise<ResponseShape> {
+  if (request.method !== "POST") {
+    return json(405, { error: "Metodo nao permitido." }, { Allow: "POST" });
+  }
+
+  const sessionResult = requireSession(headers);
+  if ("error" in sessionResult) return sessionResult.error;
+  const { session } = sessionResult;
+
+  if (!session.tenantId || session.role !== "owner") {
+    return json(403, { error: "Somente o owner pode cancelar NF-e." });
+  }
+  if (!session.nfeEnabled) {
+    return json(403, { error: "NF-e nao habilitado para esta loja." });
+  }
+
+  const config = getNfeConfig(session.tenantId);
+  if (!config) return json(400, { error: "NF-e nao configurado." });
+
+  const body = (request.body ?? {}) as Record<string, unknown>;
+  const vendaId = String(body.vendaId ?? "").trim();
+  const informedRef = String(body.ref ?? "").trim();
+  const justificativa = String(body.justificativa ?? "").trim();
+
+  if (!vendaId) return json(400, { error: "Informe o ID da venda." });
+  if (justificativa.length < 15) {
+    return json(400, { error: "A justificativa deve ter pelo menos 15 caracteres." });
+  }
+  if (justificativa.length > 255) {
+    return json(400, { error: "A justificativa deve ter no maximo 255 caracteres." });
+  }
+
+  const vendaResult = getVendaContext(session, vendaId);
+  if ("error" in vendaResult) return vendaResult.error;
+  const existingNfe = asRecord(vendaResult.venda.nfe);
+  const ref = String(existingNfe?.ref ?? "");
+
+  if (!ref) {
+    return json(400, { error: "Esta venda nao possui NF-e emitida." });
+  }
+  if (informedRef && informedRef !== ref) {
+    return json(400, { error: "A referencia informada nao corresponde a NF-e da venda." });
+  }
+
+  try {
+    const focusRes = await fetch(
+      `${focusNfeBaseUrl(config.ambiente)}/nfe/${encodeURIComponent(ref)}`,
+      {
+        method: "DELETE",
+        headers: {
+          Authorization: focusNfeAuth(config.focusApiKey),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ justificativa }),
+      },
+    );
+    const focusBody = await focusRes.json().catch(() => ({})) as Record<string, unknown>;
+
+    if (focusRes.ok || String(focusBody.codigo ?? "") === "nfe_cancelada") {
+      const nfeInfo = buildNfeInfoFromFocus({
+        config,
+        ref,
+        focusBody: { ...focusBody, status: "cancelado" },
+        httpStatus: focusRes.status,
+        valorTotal: Number(existingNfe?.valorTotal ?? vendaResult.venda.valor ?? 0),
+        descricaoProduto: String(existingNfe?.descricaoProduto ?? buildNfeDescription(vendaResult.veiculo as Record<string, unknown>)),
+        formaPagamento: String(existingNfe?.formaPagamento ?? "01"),
+        destinatario: asRecord(existingNfe?.destinatario) ?? {},
+        existingNfe,
+        cancelledNow: true,
+        justificativa,
+      });
+      const vendaAtualizada = updateVendaNfe(session.tenantId, vendaId, nfeInfo);
+      return json(200, { success: true, nfe: nfeInfo });
+    }
+
+    return json(focusRes.status, {
+      error: extractFocusError(focusBody),
+    });
+  } catch (error) {
+    return json(500, { error: "Erro ao cancelar NF-e." });
+  }
+}
+
 function checkCsrf(method: string, headers: Record<string, string>): ResponseShape | null {
   if (method === "GET" || method === "HEAD" || method === "OPTIONS") return null;
 
@@ -926,6 +1512,22 @@ export async function handleBackendRequest(request: RequestShape): Promise<Respo
 
     if (request.path.startsWith("/api/fipe/modelos")) {
       return await handleFipeModelSuggestions(request, headers);
+    }
+
+    if (request.path === "/api/nfe/config") {
+      return await handleNfeConfig(request, headers);
+    }
+
+    if (request.path === "/api/nfe/emitir") {
+      return await handleNfeEmitir(request, headers);
+    }
+
+    if (request.path.startsWith("/api/nfe/status")) {
+      return await handleNfeStatus(request, headers);
+    }
+
+    if (request.path === "/api/nfe/cancelar") {
+      return await handleNfeCancelar(request, headers);
     }
 
     // ── Health check (Railway / monitoring) ─────────────────────────────

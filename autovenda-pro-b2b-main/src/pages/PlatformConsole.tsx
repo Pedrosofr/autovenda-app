@@ -637,6 +637,16 @@ export default function PlatformConsole() {
                           >
                             Bloquear
                           </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className={store.nfe_enabled ? "border-amber-500/20 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20" : "border-white/10 bg-white/5 text-white/50 hover:bg-white/10"}
+                            disabled={updatingStoreId === store.id}
+                            onClick={() => handleQuickStatusUpdate(store.id, { nfeEnabled: !store.nfe_enabled }, store.nfe_enabled ? "NF-e desativado." : "NF-e ativado.")}
+                          >
+                            NF-e {store.nfe_enabled ? "ON" : "OFF"}
+                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>

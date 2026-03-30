@@ -1,0 +1,5 @@
+# O repositório real vive dentro desta pasta.
+# Ignoramos artefatos e diretórios auxiliares criados na raiz.
+/*
+!/autovenda-pro-b2b-main/
+!/.gitignore
