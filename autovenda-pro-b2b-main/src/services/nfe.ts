@@ -96,3 +96,12 @@ export async function cancelarNfe(vendaId: string, justificativa: string, ref?: 
     body: JSON.stringify({ vendaId, ref, justificativa }),
   });
 }
+
+export async function downloadNfeAsset(vendaId: string, type: "danfe" | "xml"): Promise<{ fileName: string; contentType: string; blob: Blob }> {
+  const params = new URLSearchParams({ vendaId });
+  const data = await request<{ fileName: string; contentType: string; contentBase64: string }>(`/api/nfe/${type}?${params.toString()}`, { method: "GET" });
+  const binary = atob(data.contentBase64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return { fileName: data.fileName, contentType: data.contentType, blob: new Blob([bytes], { type: data.contentType }) };
+}

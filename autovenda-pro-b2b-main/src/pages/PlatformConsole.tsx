@@ -1,5 +1,5 @@
 import { startTransition, useEffect, useMemo, useState } from "react";
-import { Building2, Crown, Loader2, LogIn, Plus, ShieldCheck, UserPlus, Users2 } from "lucide-react";
+import { Building2, Crown, Loader2, LogIn, Plus, Power, ShieldCheck, UserPlus, Users2 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,10 +21,13 @@ import {
   createPlatformStore,
   createPlatformStoreUser,
   fetchPlatformStores,
+  fetchPlatformStoreNfeConfig,
   fetchPlatformStoreUsers,
+  type PlatformStoreNfeConfig,
   type PlatformStoreMember,
   type PlatformStoreSummary,
   updatePlatformStore,
+  updatePlatformStoreNfeConfig,
 } from "@/services/platform";
 
 const INITIAL_STORE_FORM = {
@@ -43,6 +46,33 @@ const INITIAL_USER_FORM = {
   password: "",
   salesGoalMonthly: "",
   role: "seller" as "owner" | "seller",
+};
+
+const INITIAL_NFE_FORM: Omit<PlatformStoreNfeConfig, "focusApiKeyMasked" | "hasSavedApiKey"> = {
+  focusApiKey: "",
+  ambiente: "homologacao",
+  cnpj: "",
+  razaoSocial: "",
+  nomeFantasia: "",
+  inscricaoEstadual: "",
+  regimeTributario: "1",
+  logradouro: "",
+  numero: "",
+  complemento: "",
+  bairro: "",
+  municipio: "",
+  codigoMunicipio: "",
+  uf: "",
+  cep: "",
+  telefone: "",
+  email: "",
+};
+
+const INITIAL_NFE_STATUS = {
+  enabled: false,
+  configured: false,
+  hasSavedApiKey: false,
+  focusApiKeyMasked: "",
 };
 
 function statusLabel(status: PlatformStoreSummary["status"]) {
@@ -82,6 +112,40 @@ function memberRoleLabel(role: PlatformStoreMember["papel"]) {
   return role === "owner" ? "Acesso total" : "Somente vendedor";
 }
 
+function nfeAddonLabel(enabled: boolean | number) {
+  return enabled ? "Addon ativo" : "Addon desligado";
+}
+
+function nfeConfigLabel(configured: boolean | number) {
+  return configured ? "Configuracao salva" : "Configuracao pendente";
+}
+
+function mapNfeConfigToForm(config: PlatformStoreNfeConfig | null) {
+  if (!config) {
+    return { ...INITIAL_NFE_FORM };
+  }
+
+  return {
+    focusApiKey: "",
+    ambiente: config.ambiente,
+    cnpj: config.cnpj ?? "",
+    razaoSocial: config.razaoSocial ?? "",
+    nomeFantasia: config.nomeFantasia ?? "",
+    inscricaoEstadual: config.inscricaoEstadual ?? "",
+    regimeTributario: config.regimeTributario,
+    logradouro: config.logradouro ?? "",
+    numero: config.numero ?? "",
+    complemento: config.complemento ?? "",
+    bairro: config.bairro ?? "",
+    municipio: config.municipio ?? "",
+    codigoMunicipio: config.codigoMunicipio ?? "",
+    uf: config.uf ?? "",
+    cep: config.cep ?? "",
+    telefone: config.telefone ?? "",
+    email: config.email ?? "",
+  };
+}
+
 function formatTrialDate(value: string) {
   return new Date(value).toLocaleDateString("pt-BR");
 }
@@ -107,6 +171,10 @@ function activityLabel(action: string) {
       return "Login realizado";
     case "tenant.state.updated":
       return "Dados da loja sincronizados";
+    case "tenant.nfe_toggled":
+      return "Addon NF-e atualizado";
+    case "tenant.nfe_config_updated":
+      return "Configuracao NF-e salva";
     default:
       return action;
   }
@@ -122,11 +190,15 @@ export default function PlatformConsole() {
   const [members, setMembers] = useState<PlatformStoreMember[]>([]);
   const [membersLoading, setMembersLoading] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
+  const [nfeConfigLoading, setNfeConfigLoading] = useState(false);
+  const [savingNfeConfig, setSavingNfeConfig] = useState(false);
   const [creatingUser, setCreatingUser] = useState(false);
   const [activity, setActivity] = useState<AuditEvent[]>([]);
   const [activityLoading, setActivityLoading] = useState(true);
   const [storeForm, setStoreForm] = useState(INITIAL_STORE_FORM);
   const [manageSettings, setManageSettings] = useState({ trialDays: "7", maxUsers: "5" });
+  const [nfeSettings, setNfeSettings] = useState(INITIAL_NFE_STATUS);
+  const [nfeForm, setNfeForm] = useState(INITIAL_NFE_FORM);
   const [userForm, setUserForm] = useState(INITIAL_USER_FORM);
 
   useEffect(() => {
@@ -198,6 +270,10 @@ export default function PlatformConsole() {
     });
   };
 
+  const handleNfeField = (field: keyof typeof nfeForm, value: string) => {
+    setNfeForm((current) => ({ ...current, [field]: value }));
+  };
+
   const handleCreateStore = async (event: React.FormEvent) => {
     event.preventDefault();
     setSubmittingStore(true);
@@ -231,18 +307,51 @@ export default function PlatformConsole() {
       maxUsers: String(store.max_users),
     });
     setUserForm(INITIAL_USER_FORM);
+    setNfeForm({ ...INITIAL_NFE_FORM });
+    setNfeSettings({
+      enabled: Boolean(store.nfe_enabled),
+      configured: Boolean(store.nfe_configured),
+      hasSavedApiKey: false,
+      focusApiKeyMasked: "",
+    });
     setMembers([]);
     setManageOpen(true);
     setMembersLoading(true);
+    setNfeConfigLoading(true);
 
-    try {
-      const response = await fetchPlatformStoreUsers(store.id);
-      startTransition(() => setMembers(response.members));
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Nao foi possivel carregar os usuarios da loja.");
-    } finally {
-      setMembersLoading(false);
+    const [membersResult, nfeResult] = await Promise.allSettled([
+      fetchPlatformStoreUsers(store.id),
+      fetchPlatformStoreNfeConfig(store.id),
+    ]);
+
+    if (membersResult.status === "fulfilled") {
+      startTransition(() => setMembers(membersResult.value.members));
+    } else {
+      toast.error(
+        membersResult.reason instanceof Error
+          ? membersResult.reason.message
+          : "Nao foi possivel carregar os usuarios da loja.",
+      );
     }
+
+    if (nfeResult.status === "fulfilled") {
+      setNfeSettings({
+        enabled: nfeResult.value.enabled,
+        configured: nfeResult.value.configured,
+        hasSavedApiKey: nfeResult.value.config?.hasSavedApiKey ?? false,
+        focusApiKeyMasked: nfeResult.value.config?.focusApiKeyMasked ?? "",
+      });
+      setNfeForm(mapNfeConfigToForm(nfeResult.value.config));
+    } else {
+      toast.error(
+        nfeResult.reason instanceof Error
+          ? nfeResult.reason.message
+          : "Nao foi possivel carregar a configuracao NF-e da loja.",
+      );
+    }
+
+    setMembersLoading(false);
+    setNfeConfigLoading(false);
   };
 
   const handleQuickStatusUpdate = async (
@@ -253,9 +362,17 @@ export default function PlatformConsole() {
     setUpdatingStoreId(storeId);
     try {
       const response = await updatePlatformStore(storeId, payload);
+      const nextSelectedStore = response.stores.find((store) => store.id === selectedStore?.id) ?? selectedStore;
       startTransition(() => {
         setStores(response.stores);
-        setSelectedStore((current) => response.stores.find((store) => store.id === current?.id) ?? current);
+        setSelectedStore(nextSelectedStore);
+        if (nextSelectedStore && nextSelectedStore.id === storeId) {
+          setNfeSettings((settings) => ({
+            ...settings,
+            enabled: Boolean(nextSelectedStore.nfe_enabled),
+            configured: Boolean(nextSelectedStore.nfe_configured),
+          }));
+        }
       });
       void refreshActivity();
       toast.success(successMessage);
@@ -292,6 +409,66 @@ export default function PlatformConsole() {
       toast.error(error instanceof Error ? error.message : "Nao foi possivel salvar as configuracoes.");
     } finally {
       setSavingSettings(false);
+    }
+  };
+
+  const handleToggleNfeAddon = async () => {
+    if (!selectedStore) return;
+
+    setUpdatingStoreId(selectedStore.id);
+    try {
+      const response = await updatePlatformStore(selectedStore.id, {
+        nfeEnabled: !Boolean(selectedStore.nfe_enabled),
+      });
+
+      const nextSelectedStore = response.stores.find((store) => store.id === selectedStore.id) ?? selectedStore;
+      startTransition(() => {
+        setStores(response.stores);
+        setSelectedStore(nextSelectedStore);
+        setNfeSettings((current) => ({
+          ...current,
+          enabled: Boolean(nextSelectedStore.nfe_enabled),
+          configured: Boolean(nextSelectedStore.nfe_configured),
+        }));
+      });
+      void refreshActivity();
+      toast.success(nextSelectedStore.nfe_enabled ? "NF-e ativado para a loja." : "NF-e desativado para a loja.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Nao foi possivel atualizar o addon NF-e.");
+    } finally {
+      setUpdatingStoreId(null);
+    }
+  };
+
+  const handleSaveNfeConfig = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!selectedStore) return;
+
+    setSavingNfeConfig(true);
+    try {
+      const [configResponse, storesResponse] = await Promise.all([
+        updatePlatformStoreNfeConfig(selectedStore.id, nfeForm),
+        fetchPlatformStores(),
+      ]);
+
+      const nextSelectedStore = storesResponse.stores.find((store) => store.id === selectedStore.id) ?? selectedStore;
+      startTransition(() => {
+        setStores(storesResponse.stores);
+        setSelectedStore(nextSelectedStore);
+        setNfeSettings({
+          enabled: configResponse.enabled,
+          configured: configResponse.configured,
+          hasSavedApiKey: configResponse.config?.hasSavedApiKey ?? false,
+          focusApiKeyMasked: configResponse.config?.focusApiKeyMasked ?? "",
+        });
+        setNfeForm(mapNfeConfigToForm(configResponse.config));
+      });
+      void refreshActivity();
+      toast.success("Configuracao NF-e salva com sucesso.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Nao foi possivel salvar a configuracao NF-e.");
+    } finally {
+      setSavingNfeConfig(false);
     }
   };
 
@@ -554,6 +731,7 @@ export default function PlatformConsole() {
                     <TableHead className="text-white/45">Loja</TableHead>
                     <TableHead className="text-white/45">Owner</TableHead>
                     <TableHead className="text-white/45">Status</TableHead>
+                    <TableHead className="text-white/45">NF-e</TableHead>
                     <TableHead className="text-white/45">Usuarios</TableHead>
                     <TableHead className="text-white/45">Trial</TableHead>
                     <TableHead className="text-right text-white/45">Acoes</TableHead>
@@ -581,6 +759,21 @@ export default function PlatformConsole() {
                         <Badge variant="outline" className={statusClassName(store.status)}>
                           {statusLabel(store.status)}
                         </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="space-y-1">
+                          <Badge
+                            variant="outline"
+                            className={
+                              store.nfe_enabled
+                                ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-300"
+                                : "border-white/10 bg-white/5 text-white/60"
+                            }
+                          >
+                            {nfeAddonLabel(store.nfe_enabled)}
+                          </Badge>
+                          <div className="text-xs text-white/45">{nfeConfigLabel(store.nfe_configured)}</div>
+                        </div>
                       </TableCell>
                       <TableCell className="text-white/75">{store.users_count}/{store.max_users}</TableCell>
                       <TableCell className="text-white/65">{formatTrialDate(store.trial_ends_at)}</TableCell>
@@ -668,46 +861,312 @@ export default function PlatformConsole() {
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-6 grid-cols-1 lg:grid-cols-[0.95fr,1.25fr]">
-            <Card className="border-white/10 bg-white/[0.03] text-white shadow-none">
-              <CardHeader>
-                <CardTitle className="text-lg">Configuracoes da loja</CardTitle>
-                <CardDescription className="text-white/45">
-                  Ao salvar, os dias de trial passam a contar novamente a partir de hoje.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form className="space-y-4" onSubmit={handleSaveSettings}>
-                  <div className="space-y-2">
-                    <Label htmlFor="manageTrialDays" className="text-white/70">Dias de trial</Label>
-                    <Input
-                      id="manageTrialDays"
-                      type="number"
-                      min="1"
-                      value={manageSettings.trialDays}
-                      onChange={(event) => setManageSettings((current) => ({ ...current, trialDays: event.target.value }))}
-                      className="border-white/10 bg-black/20 text-white"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="manageMaxUsers" className="text-white/70">Limite de usuarios</Label>
-                    <Input
-                      id="manageMaxUsers"
-                      type="number"
-                      min={Math.max(1, members.length)}
-                      value={manageSettings.maxUsers}
-                      onChange={(event) => setManageSettings((current) => ({ ...current, maxUsers: event.target.value }))}
-                      className="border-white/10 bg-black/20 text-white"
-                    />
-                  </div>
-                  <DialogFooter className="justify-start sm:justify-start">
-                    <Button type="submit" disabled={savingSettings} className="card-gradient-blue text-white">
-                      {savingSettings ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
-                      Salvar configuracoes
-                    </Button>
-                  </DialogFooter>
-                </form>
-              </CardContent>
-            </Card>
+            <div className="space-y-6">
+              <Card className="border-white/10 bg-white/[0.03] text-white shadow-none">
+                <CardHeader>
+                  <CardTitle className="text-lg">Configuracoes da loja</CardTitle>
+                  <CardDescription className="text-white/45">
+                    Ao salvar, os dias de trial passam a contar novamente a partir de hoje.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <form className="space-y-4" onSubmit={handleSaveSettings}>
+                    <div className="space-y-2">
+                      <Label htmlFor="manageTrialDays" className="text-white/70">Dias de trial</Label>
+                      <Input
+                        id="manageTrialDays"
+                        type="number"
+                        min="1"
+                        value={manageSettings.trialDays}
+                        onChange={(event) => setManageSettings((current) => ({ ...current, trialDays: event.target.value }))}
+                        className="border-white/10 bg-black/20 text-white"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="manageMaxUsers" className="text-white/70">Limite de usuarios</Label>
+                      <Input
+                        id="manageMaxUsers"
+                        type="number"
+                        min={Math.max(1, members.length)}
+                        value={manageSettings.maxUsers}
+                        onChange={(event) => setManageSettings((current) => ({ ...current, maxUsers: event.target.value }))}
+                        className="border-white/10 bg-black/20 text-white"
+                      />
+                    </div>
+                    <DialogFooter className="justify-start sm:justify-start">
+                      <Button type="submit" disabled={savingSettings} className="card-gradient-blue text-white">
+                        {savingSettings ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
+                        Salvar configuracoes
+                      </Button>
+                    </DialogFooter>
+                  </form>
+                </CardContent>
+              </Card>
+
+              <Card className="border-white/10 bg-white/[0.03] text-white shadow-none">
+                <CardHeader>
+                  <CardTitle className="text-lg">NF-e privado da loja</CardTitle>
+                  <CardDescription className="text-white/45">
+                    Apenas a plataforma habilita o addon e salva a API key com os dados do emitente fiscal.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {nfeConfigLoading ? (
+                    <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-10 text-white/65">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Carregando configuracao NF-e...
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge
+                          variant="outline"
+                          className={
+                            nfeSettings.enabled
+                              ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-300"
+                              : "border-white/10 bg-white/5 text-white/60"
+                          }
+                        >
+                          {nfeAddonLabel(nfeSettings.enabled)}
+                        </Badge>
+                        <Badge
+                          variant="outline"
+                          className={
+                            nfeSettings.configured
+                              ? "border-blue-500/20 bg-blue-500/10 text-blue-300"
+                              : "border-amber-500/20 bg-amber-500/10 text-amber-300"
+                          }
+                        >
+                          {nfeConfigLabel(nfeSettings.configured)}
+                        </Badge>
+                      </div>
+
+                      <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/60">
+                        {nfeSettings.hasSavedApiKey
+                          ? `API key salva: ${nfeSettings.focusApiKeyMasked}`
+                          : "Nenhuma API key salva para esta loja ainda."}
+                      </div>
+
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className={
+                          nfeSettings.enabled
+                            ? "border-amber-500/20 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20"
+                            : "border-emerald-500/20 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20"
+                        }
+                        disabled={!selectedStore || updatingStoreId === selectedStore.id}
+                        onClick={() => {
+                          void handleToggleNfeAddon();
+                        }}
+                      >
+                        {updatingStoreId === selectedStore?.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Power className="mr-2 h-4 w-4" />}
+                        {nfeSettings.enabled ? "Desativar addon NF-e" : "Ativar addon NF-e"}
+                      </Button>
+
+                      <form className="space-y-4" onSubmit={handleSaveNfeConfig}>
+                        <div className="space-y-2">
+                          <Label htmlFor="platformNfeApiKey" className="text-white/70">API key da Focus</Label>
+                          <Input
+                            id="platformNfeApiKey"
+                            type="password"
+                            value={nfeForm.focusApiKey}
+                            onChange={(event) => handleNfeField("focusApiKey", event.target.value)}
+                            className="border-white/10 bg-black/20 text-white"
+                            placeholder={nfeSettings.focusApiKeyMasked || "Cole a API key privada da Focus"}
+                          />
+                          <p className="text-xs text-white/45">
+                            Deixe em branco para manter a chave atual sem expor o segredo novamente.
+                          </p>
+                        </div>
+
+                        <div className="grid gap-4 md:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label htmlFor="platformNfeAmbiente" className="text-white/70">Ambiente</Label>
+                            <select
+                              id="platformNfeAmbiente"
+                              value={nfeForm.ambiente}
+                              onChange={(event) => handleNfeField("ambiente", event.target.value)}
+                              className="flex h-10 w-full rounded-md border border-white/10 bg-black/20 px-3 py-2 text-sm text-white"
+                            >
+                              <option value="homologacao">Homologacao</option>
+                              <option value="producao">Producao</option>
+                            </select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="platformNfeRegime" className="text-white/70">Regime tributario</Label>
+                            <select
+                              id="platformNfeRegime"
+                              value={nfeForm.regimeTributario}
+                              onChange={(event) => handleNfeField("regimeTributario", event.target.value)}
+                              className="flex h-10 w-full rounded-md border border-white/10 bg-black/20 px-3 py-2 text-sm text-white"
+                            >
+                              <option value="1">Simples Nacional</option>
+                              <option value="2">Simples excesso sublimite</option>
+                              <option value="3">Regime normal</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        <div className="grid gap-4 md:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label htmlFor="platformNfeCnpj" className="text-white/70">CNPJ</Label>
+                            <Input
+                              id="platformNfeCnpj"
+                              value={nfeForm.cnpj}
+                              onChange={(event) => handleNfeField("cnpj", event.target.value)}
+                              className="border-white/10 bg-black/20 text-white"
+                              placeholder="00.000.000/0000-00"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="platformNfeIe" className="text-white/70">Inscricao estadual</Label>
+                            <Input
+                              id="platformNfeIe"
+                              value={nfeForm.inscricaoEstadual}
+                              onChange={(event) => handleNfeField("inscricaoEstadual", event.target.value)}
+                              className="border-white/10 bg-black/20 text-white"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="platformNfeRazaoSocial" className="text-white/70">Razao social</Label>
+                          <Input
+                            id="platformNfeRazaoSocial"
+                            value={nfeForm.razaoSocial}
+                            onChange={(event) => handleNfeField("razaoSocial", event.target.value)}
+                            className="border-white/10 bg-black/20 text-white"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="platformNfeNomeFantasia" className="text-white/70">Nome fantasia</Label>
+                          <Input
+                            id="platformNfeNomeFantasia"
+                            value={nfeForm.nomeFantasia}
+                            onChange={(event) => handleNfeField("nomeFantasia", event.target.value)}
+                            className="border-white/10 bg-black/20 text-white"
+                          />
+                        </div>
+
+                        <div className="grid gap-4 md:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label htmlFor="platformNfeEmail" className="text-white/70">Email fiscal</Label>
+                            <Input
+                              id="platformNfeEmail"
+                              type="email"
+                              value={nfeForm.email}
+                              onChange={(event) => handleNfeField("email", event.target.value)}
+                              className="border-white/10 bg-black/20 text-white"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="platformNfeTelefone" className="text-white/70">Telefone</Label>
+                            <Input
+                              id="platformNfeTelefone"
+                              value={nfeForm.telefone}
+                              onChange={(event) => handleNfeField("telefone", event.target.value)}
+                              className="border-white/10 bg-black/20 text-white"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid gap-4 md:grid-cols-[1.6fr,0.7fr,0.9fr]">
+                          <div className="space-y-2">
+                            <Label htmlFor="platformNfeLogradouro" className="text-white/70">Logradouro</Label>
+                            <Input
+                              id="platformNfeLogradouro"
+                              value={nfeForm.logradouro}
+                              onChange={(event) => handleNfeField("logradouro", event.target.value)}
+                              className="border-white/10 bg-black/20 text-white"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="platformNfeNumero" className="text-white/70">Numero</Label>
+                            <Input
+                              id="platformNfeNumero"
+                              value={nfeForm.numero}
+                              onChange={(event) => handleNfeField("numero", event.target.value)}
+                              className="border-white/10 bg-black/20 text-white"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="platformNfeComplemento" className="text-white/70">Complemento</Label>
+                            <Input
+                              id="platformNfeComplemento"
+                              value={nfeForm.complemento}
+                              onChange={(event) => handleNfeField("complemento", event.target.value)}
+                              className="border-white/10 bg-black/20 text-white"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid gap-4 md:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label htmlFor="platformNfeBairro" className="text-white/70">Bairro</Label>
+                            <Input
+                              id="platformNfeBairro"
+                              value={nfeForm.bairro}
+                              onChange={(event) => handleNfeField("bairro", event.target.value)}
+                              className="border-white/10 bg-black/20 text-white"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="platformNfeMunicipio" className="text-white/70">Municipio</Label>
+                            <Input
+                              id="platformNfeMunicipio"
+                              value={nfeForm.municipio}
+                              onChange={(event) => handleNfeField("municipio", event.target.value)}
+                              className="border-white/10 bg-black/20 text-white"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid gap-4 md:grid-cols-3">
+                          <div className="space-y-2">
+                            <Label htmlFor="platformNfeCodigoMunicipio" className="text-white/70">Codigo municipio</Label>
+                            <Input
+                              id="platformNfeCodigoMunicipio"
+                              value={nfeForm.codigoMunicipio}
+                              onChange={(event) => handleNfeField("codigoMunicipio", event.target.value)}
+                              className="border-white/10 bg-black/20 text-white"
+                              placeholder="3550308"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="platformNfeUf" className="text-white/70">UF</Label>
+                            <Input
+                              id="platformNfeUf"
+                              value={nfeForm.uf}
+                              onChange={(event) => handleNfeField("uf", event.target.value)}
+                              className="border-white/10 bg-black/20 text-white"
+                              maxLength={2}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="platformNfeCep" className="text-white/70">CEP</Label>
+                            <Input
+                              id="platformNfeCep"
+                              value={nfeForm.cep}
+                              onChange={(event) => handleNfeField("cep", event.target.value)}
+                              className="border-white/10 bg-black/20 text-white"
+                            />
+                          </div>
+                        </div>
+
+                        <DialogFooter className="justify-start sm:justify-start">
+                          <Button type="submit" disabled={savingNfeConfig} className="card-gradient-blue text-white">
+                            {savingNfeConfig ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
+                            Salvar configuracao NF-e
+                          </Button>
+                        </DialogFooter>
+                      </form>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
 
             <div className="space-y-6">
               <Card className="border-white/10 bg-[linear-gradient(180deg,rgba(31,41,55,0.85),rgba(15,23,42,0.92))] text-white shadow-none">

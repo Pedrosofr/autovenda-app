@@ -26,7 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { cancelarNfe, consultarNfe, emitirNfe } from "@/services/nfe";
+import { cancelarNfe, consultarNfe, downloadNfeAsset, emitirNfe } from "@/services/nfe";
 import type { NfeDestinatario, NfeInfo, Venda, Veiculo } from "@/store/types";
 
 const FORMAS_PAGAMENTO = [
@@ -94,6 +94,7 @@ export function NFeEmitirDialog({ open, onOpenChange, venda, veiculo, onNfeEmiti
   const [loading, setLoading] = useState(false);
   const [refreshingStatus, setRefreshingStatus] = useState(false);
   const [cancelando, setCancelando] = useState(false);
+  const [downloadingAsset, setDownloadingAsset] = useState<string | null>(null);
   const [showCancelar, setShowCancelar] = useState(false);
   const [justificativa, setJustificativa] = useState("");
   const [currentNfe, setCurrentNfe] = useState<NfeInfo | null>(null);
@@ -167,7 +168,7 @@ export function NFeEmitirDialog({ open, onOpenChange, venda, veiculo, onNfeEmiti
         toast.success("NF-e autorizada com sucesso.");
       }
       if (!silent && nextNfe.status === "erro" && previousNfe?.status !== "erro") {
-        toast.error(nextNfe.erro ?? "A Focus retornou erro na NF-e.");
+        toast.error(nextNfe.erro ?? "A nota retornou erro no processamento.");
       }
     } catch (error) {
       if (!silent) {
@@ -211,12 +212,44 @@ export function NFeEmitirDialog({ open, onOpenChange, venda, veiculo, onNfeEmiti
       } else if (result.nfe.status === "erro") {
         toast.error(result.nfe.erro ?? "A NF-e retornou erro.");
       } else {
-        toast.info("NF-e enviada para a Focus. Vamos acompanhar a autorizacao.");
+        toast.info("Nota enviada. Vamos acompanhar a autorizacao.");
       }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Erro ao emitir NF-e.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleDownload(type: "danfe" | "xml") {
+    setDownloadingAsset(type);
+    try {
+      const result = await downloadNfeAsset(venda.id, type);
+      const url = URL.createObjectURL(result.blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = result.fileName;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Erro ao baixar o arquivo.");
+    } finally {
+      setDownloadingAsset(null);
+    }
+  }
+
+  async function handlePrint() {
+    setDownloadingAsset("print");
+    try {
+      const result = await downloadNfeAsset(venda.id, "danfe");
+      const url = URL.createObjectURL(result.blob);
+      const win = window.open(url, "_blank", "noopener,noreferrer");
+      win?.focus();
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Erro ao imprimir o documento.");
+    } finally {
+      setDownloadingAsset(null);
     }
   }
 
@@ -247,7 +280,7 @@ export function NFeEmitirDialog({ open, onOpenChange, venda, veiculo, onNfeEmiti
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-white">
             <FileText className="h-4 w-4 text-amber-400" />
-            {step === "form" ? "Emitir NF-e" : "NF-e da Venda"}
+            {step === "form" ? "Emitir nota fiscal" : "Nota fiscal da venda"}
           </DialogTitle>
         </DialogHeader>
 
@@ -431,7 +464,7 @@ export function NFeEmitirDialog({ open, onOpenChange, venda, veiculo, onNfeEmiti
             </div>
 
             <div className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-3 text-xs text-blue-200">
-              A Focus processa a NF-e e o sistema acompanha o status automaticamente ate autorizacao ou erro.
+              A emissao acontece em segundo plano e o sistema acompanha o status automaticamente ate autorizacao ou erro.
             </div>
 
             <Button
@@ -440,7 +473,7 @@ export function NFeEmitirDialog({ open, onOpenChange, venda, veiculo, onNfeEmiti
               className="w-full bg-gradient-to-r from-amber-500 to-orange-500 font-semibold text-black hover:from-amber-400 hover:to-orange-400"
             >
               {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
-              {loading ? "Enviando para a Focus..." : "Emitir NF-e"}
+              {loading ? "Enviando nota..." : "Emitir nota"}
             </Button>
           </form>
         )}
@@ -464,7 +497,7 @@ export function NFeEmitirDialog({ open, onOpenChange, venda, veiculo, onNfeEmiti
 
             {currentNfe.status === "pendente" && (
               <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-3 text-sm text-amber-200">
-                A NF-e foi enviada para a Focus e ainda esta aguardando retorno da SEFAZ.
+                A nota foi enviada e ainda esta aguardando retorno da SEFAZ.
               </div>
             )}
 
@@ -521,26 +554,40 @@ export function NFeEmitirDialog({ open, onOpenChange, venda, veiculo, onNfeEmiti
 
             <div className="flex flex-wrap gap-2">
               {currentNfe.danfeUrl && (
-                <a
-                  href={currentNfe.danfeUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-2 rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-sm text-amber-300 hover:bg-amber-500/20"
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => void handleDownload("danfe")}
+                  disabled={downloadingAsset === "danfe"}
+                  className="border-amber-500/20 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20"
                 >
-                  <Download className="h-4 w-4" />
-                  Baixar DANFE
-                </a>
+                  {downloadingAsset === "danfe" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                  Salvar PDF
+                </Button>
               )}
               {currentNfe.xmlUrl && (
-                <a
-                  href={currentNfe.xmlUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/75 hover:bg-white/10"
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => void handleDownload("xml")}
+                  disabled={downloadingAsset === "xml"}
+                  className="border-white/10 bg-white/5 text-white/75 hover:bg-white/10"
                 >
-                  <Download className="h-4 w-4" />
-                  Baixar XML
-                </a>
+                  {downloadingAsset === "xml" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                  Salvar XML
+                </Button>
+              )}
+              {currentNfe.danfeUrl && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => void handlePrint()}
+                  disabled={downloadingAsset === "print"}
+                  className="border-white/10 bg-white/5 text-white hover:bg-white/10"
+                >
+                  {downloadingAsset === "print" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  Imprimir
+                </Button>
               )}
               {currentNfe.status === "erro" && (
                 <Button
@@ -560,7 +607,7 @@ export function NFeEmitirDialog({ open, onOpenChange, venda, veiculo, onNfeEmiti
                 onClick={() => setShowCancelar(true)}
                 className="text-left text-sm text-red-300 underline-offset-4 hover:underline"
               >
-                Cancelar NF-e
+                Cancelar nota
               </button>
             )}
 

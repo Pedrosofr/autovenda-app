@@ -1,158 +1,131 @@
 import { useEffect, useMemo, useState } from "react";
-import {
-  AlertCircle,
-  CheckCircle2,
-  ExternalLink,
-  FileText,
-  Loader2,
-  Save,
-  ShieldCheck,
-} from "lucide-react";
-import { useAuth } from "@/lib/auth";
+import { AlertCircle, CheckCircle2, Clock3, Download, FileText, Loader2, Printer, RefreshCw, ShieldCheck, XCircle } from "lucide-react";
+import { toast } from "sonner";
+import { useAppStore } from "@/store/appStore";
+import type { NfeStatus, Venda, Veiculo } from "@/store/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { toast } from "sonner";
-import { getNfeConfig, saveNfeConfig, type NfeConfigData } from "@/services/nfe";
+import { NFeEmitirDialog } from "@/components/NFeEmitirDialog";
+import { consultarNfe, downloadNfeAsset, getNfeConfig } from "@/services/nfe";
 
-const UF_LIST = [
-  "AC", "AL", "AM", "AP", "BA", "CE", "DF", "ES", "GO", "MA", "MG", "MS", "MT",
-  "PA", "PB", "PE", "PI", "PR", "RJ", "RN", "RO", "RR", "RS", "SC", "SE", "SP", "TO",
-];
-
-const REGIME_LABELS: Record<string, string> = {
-  "1": "Simples Nacional",
-  "2": "Simples Nacional - Excesso de receita",
-  "3": "Regime Normal",
-};
-
-const EMPTY: NfeConfigData = {
-  focusApiKey: "",
-  ambiente: "homologacao",
-  cnpj: "",
-  razaoSocial: "",
-  nomeFantasia: "",
-  inscricaoEstadual: "",
-  regimeTributario: "1",
-  logradouro: "",
-  numero: "",
-  complemento: "",
-  bairro: "",
-  municipio: "",
-  codigoMunicipio: "",
-  uf: "SP",
-  cep: "",
-  telefone: "",
-  email: "",
-};
-
-function formatCnpj(value: string) {
-  const digits = value.replace(/\D/g, "").slice(0, 14);
-  return digits
-    .replace(/^(\d{2})(\d)/, "$1.$2")
-    .replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3")
-    .replace(/\.(\d{3})(\d)/, ".$1/$2")
-    .replace(/(\d{4})(\d)/, "$1-$2");
+function formatCurrency(value: number) {
+  return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
-function formatCep(value: string) {
-  const digits = value.replace(/\D/g, "").slice(0, 8);
-  return digits.replace(/^(\d{5})(\d)/, "$1-$2");
+function formatDate(value?: string | null) {
+  return value ? new Date(value).toLocaleString("pt-BR") : "Agora";
 }
+
+function statusBadge(status?: NfeStatus) {
+  switch (status) {
+    case "autorizada":
+      return <Badge className="border-emerald-500/20 bg-emerald-500/10 text-emerald-300"><CheckCircle2 className="mr-1 h-3 w-3" />Autorizada</Badge>;
+    case "cancelada":
+      return <Badge className="border-slate-500/20 bg-slate-500/10 text-slate-300"><XCircle className="mr-1 h-3 w-3" />Cancelada</Badge>;
+    case "erro":
+      return <Badge className="border-red-500/20 bg-red-500/10 text-red-300"><AlertCircle className="mr-1 h-3 w-3" />Com erro</Badge>;
+    case "pendente":
+      return <Badge className="border-amber-500/20 bg-amber-500/10 text-amber-300"><Clock3 className="mr-1 h-3 w-3" />Em emissao</Badge>;
+    default:
+      return <Badge className="border-white/10 bg-white/5 text-white/60">Pronta para emitir</Badge>;
+  }
+}
+
+type SaleRow = { venda: Venda; veiculo?: Veiculo; vendedorNome: string };
 
 export default function NFeConfig() {
-  const { tenant, refreshSession } = useAuth();
+  const { vendas, veiculos, vendedores, refreshRemoteState } = useAppStore();
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [enabled, setEnabled] = useState(false);
   const [configured, setConfigured] = useState(false);
-  const [hasSavedApiKey, setHasSavedApiKey] = useState(false);
-  const [focusApiKeyMasked, setFocusApiKeyMasked] = useState("");
-  const [form, setForm] = useState<NfeConfigData>(EMPTY);
+  const [statusLoadingVendaId, setStatusLoadingVendaId] = useState<string | null>(null);
+  const [downloadingAsset, setDownloadingAsset] = useState<string | null>(null);
+  const [selectedVendaId, setSelectedVendaId] = useState<string | null>(null);
 
   useEffect(() => {
     getNfeConfig()
-      .then(({ config, enabled: nextEnabled, configured: nextConfigured }) => {
+      .then(({ enabled: nextEnabled, configured: nextConfigured }) => {
         setEnabled(nextEnabled);
         setConfigured(nextConfigured);
-        if (config) {
-          setForm({
-            ...EMPTY,
-            ...config,
-            focusApiKey: "",
-          });
-          setHasSavedApiKey(!!config.hasSavedApiKey);
-          setFocusApiKeyMasked(config.focusApiKeyMasked ?? "");
-        } else {
-          setHasSavedApiKey(false);
-          setFocusApiKeyMasked("");
-        }
       })
-      .catch(() => toast.error("Erro ao carregar configuracoes da NF-e."))
+      .catch(() => toast.error("Erro ao carregar os dados do modulo fiscal."))
       .finally(() => setLoading(false));
   }, []);
 
-  const requiredFieldsComplete = useMemo(() => {
-    const requiredValues = [
-      hasSavedApiKey || form.focusApiKey.trim(),
-      form.cnpj,
-      form.razaoSocial,
-      form.inscricaoEstadual,
-      form.logradouro,
-      form.numero,
-      form.bairro,
-      form.municipio,
-      form.codigoMunicipio,
-      form.uf,
-      form.cep,
-    ];
-    return requiredValues.every(Boolean)
-      && form.cnpj.replace(/\D/g, "").length === 14
-      && form.codigoMunicipio.replace(/\D/g, "").length === 7
-      && form.cep.replace(/\D/g, "").length === 8;
-  }, [form, hasSavedApiKey]);
+  const canOperate = enabled && configured;
 
-  const canEmit = enabled && configured && requiredFieldsComplete;
+  const rows = useMemo<SaleRow[]>(() => vendas.map((venda) => ({
+    venda,
+    veiculo: veiculos.find((item) => item.id === venda.veiculoId),
+    vendedorNome: vendedores.find((item) => item.id === venda.vendedorId)?.nome ?? "Nao identificado",
+  })).sort((a, b) => new Date(b.venda.data).getTime() - new Date(a.venda.data).getTime()), [vendas, veiculos, vendedores]);
 
-  function setField(field: keyof NfeConfigData, value: string) {
-    setForm((prev) => ({ ...prev, [field]: value }));
+  const stats = useMemo(() => ({
+    total: rows.length,
+    autorizadas: rows.filter((row) => row.venda.nfe?.status === "autorizada").length,
+    pendentes: rows.filter((row) => row.venda.nfe?.status === "pendente").length,
+    comErro: rows.filter((row) => row.venda.nfe?.status === "erro").length,
+    semNota: rows.filter((row) => !row.venda.nfe).length,
+  }), [rows]);
+
+  const selectedRow = useMemo(() => rows.find((row) => row.venda.id === selectedVendaId) ?? null, [rows, selectedVendaId]);
+
+  async function handleRefreshStatus(venda: Venda) {
+    if (!venda.nfe?.ref) return;
+    setStatusLoadingVendaId(venda.id);
+    try {
+      const result = await consultarNfe(venda.id, venda.nfe.ref);
+      await refreshRemoteState();
+      if (result.nfe.status === "autorizada") toast.success("Status atualizado: nota autorizada.");
+      else if (result.nfe.status === "erro") toast.error(result.nfe.erro ?? "A nota retornou erro no processamento.");
+      else toast.info("Status atualizado.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Erro ao consultar o status da nota.");
+    } finally {
+      setStatusLoadingVendaId(null);
+    }
   }
 
-  async function handleSave(event: React.FormEvent) {
-    event.preventDefault();
-    setSaving(true);
+  async function handleDownload(vendaId: string, type: "danfe" | "xml") {
+    const key = `${vendaId}-${type}`;
+    setDownloadingAsset(key);
     try {
-      await saveNfeConfig(form);
-      setConfigured(true);
-      setHasSavedApiKey((prev) => prev || !!form.focusApiKey.trim());
-      setFocusApiKeyMasked((prev) => prev || "Chave salva com sucesso");
-      await refreshSession();
-      toast.success("Configuracao da NF-e salva.");
+      const result = await downloadNfeAsset(vendaId, type);
+      const url = URL.createObjectURL(result.blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = result.fileName;
+      a.click();
+      URL.revokeObjectURL(url);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Erro ao salvar configuracao.");
+      toast.error(error instanceof Error ? error.message : "Erro ao baixar o arquivo.");
     } finally {
-      setSaving(false);
+      setDownloadingAsset(null);
+    }
+  }
+
+  async function handlePrint(vendaId: string) {
+    const key = `${vendaId}-print`;
+    setDownloadingAsset(key);
+    try {
+      const result = await downloadNfeAsset(vendaId, "danfe");
+      const url = URL.createObjectURL(result.blob);
+      const win = window.open(url, "_blank", "noopener,noreferrer");
+      win?.focus();
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Erro ao imprimir o documento.");
+    } finally {
+      setDownloadingAsset(null);
     }
   }
 
   if (loading) {
-    return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-amber-400" />
-      </div>
-    );
+    return <div className="flex min-h-[60vh] items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-amber-400" /></div>;
   }
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
+    <div className="mx-auto max-w-6xl space-y-6">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className="space-y-2">
           <div className="flex items-center gap-3">
@@ -160,307 +133,132 @@ export default function NFeConfig() {
               <FileText className="h-5 w-5 text-amber-400" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-white">NF-e com Focus</h1>
-              <p className="text-sm text-white/45">
-                Deixe a emissao pronta e acompanhe as notas com mais previsibilidade.
-              </p>
+              <h1 className="text-2xl font-bold text-white">Notas fiscais</h1>
+              <p className="text-sm text-white/45">Emita, acompanhe status, salve arquivos e gerencie cancelamentos sem sair da operacao.</p>
             </div>
           </div>
-          <p className="max-w-2xl text-sm text-white/55">
-            A Focus recebe a NF-e de forma assíncrona. Depois do envio, o sistema consulta o status
-            até autorização, preserva DANFE/XML e evita duplicidade por venda.
-          </p>
+          <p className="max-w-3xl text-sm text-white/55">As vendas aprovadas ficam centralizadas aqui para voce emitir a nota, consultar retorno da SEFAZ, salvar PDF/XML e abrir a nota novamente quando precisar.</p>
         </div>
-
-        <Badge className={canEmit ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-300" : "border-amber-500/20 bg-amber-500/10 text-amber-300"}>
-          {canEmit ? <CheckCircle2 className="mr-1 h-3 w-3" /> : <AlertCircle className="mr-1 h-3 w-3" />}
-          {canEmit ? "Pronto para emitir" : "Configuracao pendente"}
+        <Badge className={canOperate ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-300" : "border-amber-500/20 bg-amber-500/10 text-amber-300"}>
+          {canOperate ? <CheckCircle2 className="mr-1 h-3 w-3" /> : <AlertCircle className="mr-1 h-3 w-3" />}
+          {canOperate ? "Operacao pronta" : !enabled ? "Modulo inativo" : "Aguardando configuracao"}
         </Badge>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-3">
-        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-          <div className="mb-2 flex items-center gap-2 text-sm font-medium text-white">
-            <ShieldCheck className="h-4 w-4 text-amber-300" />
-            Modulo NF-e
-          </div>
-          <p className="text-sm text-white/65">
-            {enabled
-              ? "Liberado para a loja."
-              : "Voce ja pode preparar os dados. A emissao libera quando a plataforma ativar o modulo."}
-          </p>
-        </div>
-
-        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-          <div className="mb-2 flex items-center gap-2 text-sm font-medium text-white">
-            <CheckCircle2 className="h-4 w-4 text-emerald-300" />
-            Integracao Focus
-          </div>
-          <p className="text-sm text-white/65">
-            {hasSavedApiKey
-              ? "Chave salva com seguranca. Voce pode deixar o campo em branco para manter a atual."
-              : "Informe a chave da Focus para permitir envio, consulta e cancelamento."}
-          </p>
-        </div>
-
-        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-          <div className="mb-2 flex items-center gap-2 text-sm font-medium text-white">
-            <FileText className="h-4 w-4 text-blue-300" />
-            Operacao
-          </div>
-          <p className="text-sm text-white/65">
-            Depois de salvar, emita direto em <span className="text-white">Vendas</span> ou <span className="text-white">Estoque</span>.
-          </p>
-        </div>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4"><div className="mb-2 flex items-center gap-2 text-sm font-medium text-white"><ShieldCheck className="h-4 w-4 text-amber-300" />Modulo fiscal</div><p className="text-sm text-white/65">{enabled ? "Ativo para esta loja." : "Entre em contato com o suporte para ativar."}</p></div>
+        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4"><div className="mb-2 flex items-center gap-2 text-sm font-medium text-white"><CheckCircle2 className="h-4 w-4 text-emerald-300" />Notas autorizadas</div><p className="text-2xl font-semibold text-white">{stats.autorizadas}</p><p className="mt-1 text-sm text-white/50">{stats.total > 0 ? `${stats.total} vendas listadas` : "Nenhuma venda ainda"}</p></div>
+        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4"><div className="mb-2 flex items-center gap-2 text-sm font-medium text-white"><Clock3 className="h-4 w-4 text-amber-300" />Acompanhamento</div><p className="text-2xl font-semibold text-white">{stats.pendentes + stats.comErro}</p><p className="mt-1 text-sm text-white/50">{stats.pendentes} pendentes e {stats.comErro} com erro</p></div>
+        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4"><div className="mb-2 flex items-center gap-2 text-sm font-medium text-white"><FileText className="h-4 w-4 text-blue-300" />Prontas para emitir</div><p className="text-2xl font-semibold text-white">{stats.semNota}</p><p className="mt-1 text-sm text-white/50">{canOperate ? "Vendas sem nota emitida." : "Modulo fiscal pendente de configuracao."}</p></div>
       </div>
 
-      {!enabled && (
-        <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-200">
-          <AlertCircle className="mr-2 inline h-4 w-4" />
-          O modulo ainda nao esta ativo para esta loja, mas voce pode deixar a configuracao pronta agora.
+      {!canOperate && (
+        <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-100">
+          <div className="font-semibold text-white">{!enabled ? "Modulo fiscal inativo" : "Configuracao pendente"}</div>
+          <p className="mt-1 text-amber-100/80">{!enabled ? "O modulo de emissao de notas fiscais ainda nao esta ativo para esta loja. Entre em contato com o suporte." : "O cadastro fiscal da loja esta sendo configurado. Em breve voce podera emitir notas fiscais."}</p>
         </div>
       )}
 
-      {form.ambiente === "homologacao" && (
-        <div className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-4 text-sm text-blue-200">
-          <AlertCircle className="mr-2 inline h-4 w-4" />
-          Em homologacao, a propria documentacao da Focus indica uso de dados de teste e, em alguns cenarios,
-          nome do destinatario com a identificacao de ambiente sem valor fiscal.
-        </div>
-      )}
-
-      <form onSubmit={handleSave} className="space-y-5">
-        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 space-y-4">
-          <h2 className="text-sm font-semibold uppercase tracking-[0.15em] text-white/70">Integracao Focus</h2>
-
-          <div className="space-y-2">
-            <Label className="text-white/60">Chave de API da Focus</Label>
-            <Input
-              type="password"
-              value={form.focusApiKey}
-              onChange={(event) => setField("focusApiKey", event.target.value)}
-              placeholder={hasSavedApiKey ? "Deixe em branco para manter a chave atual" : "Cole a chave da Focus"}
-              className="border-white/10 bg-white/5 text-white"
-            />
-            <div className="flex flex-wrap items-center gap-3 text-xs text-white/35">
-              {hasSavedApiKey ? <span>Chave atual protegida: {focusApiKeyMasked}</span> : <span>Nenhuma chave salva ainda.</span>}
-              <a
-                href="https://doc.focusnfe.com.br/reference/emitir_nfe"
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1 text-amber-400/80 hover:text-amber-300"
-              >
-                Documentacao oficial <ExternalLink className="h-3 w-3" />
-              </a>
-            </div>
+      <section className="space-y-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-white">Vendas e notas</h2>
+            <p className="text-sm text-white/45">Veja cada venda concluida e aja rapido com emissao, status, arquivos e cancelamento.</p>
           </div>
-
-          <div className="space-y-2">
-            <Label className="text-white/60">Ambiente</Label>
-            <Select value={form.ambiente} onValueChange={(value) => setField("ambiente", value)}>
-              <SelectTrigger className="border-white/10 bg-white/5 text-white">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="border-white/10 bg-[hsl(230,18%,13%)]">
-                <SelectItem value="homologacao" className="text-white">Homologacao</SelectItem>
-                <SelectItem value="producao" className="text-white">Producao</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          <Badge className="border-white/10 bg-white/5 text-white/70">{stats.total} {stats.total === 1 ? "venda" : "vendas"}</Badge>
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 space-y-4">
-          <h2 className="text-sm font-semibold uppercase tracking-[0.15em] text-white/70">Dados do Emitente</h2>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label className="text-white/60">CNPJ</Label>
-              <Input
-                value={form.cnpj}
-                onChange={(event) => setField("cnpj", formatCnpj(event.target.value))}
-                placeholder="00.000.000/0000-00"
-                className="border-white/10 bg-white/5 text-white"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label className="text-white/60">Inscricao Estadual</Label>
-              <Input
-                value={form.inscricaoEstadual}
-                onChange={(event) => setField("inscricaoEstadual", event.target.value)}
-                placeholder="Ex.: 123456789"
-                className="border-white/10 bg-white/5 text-white"
-              />
-            </div>
+        {rows.length === 0 ? (
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-10 text-center text-white/60">
+            <FileText className="mx-auto mb-3 h-12 w-12 text-white/20" />
+            <p className="text-base font-medium text-white">Nenhuma venda concluida ainda.</p>
+            <p className="mt-2 text-sm text-white/45">Assim que um veiculo for marcado como vendido, ele aparecera aqui para emissao da nota.</p>
           </div>
-
-          <div className="space-y-2">
-            <Label className="text-white/60">Razao Social</Label>
-            <Input
-              value={form.razaoSocial}
-              onChange={(event) => setField("razaoSocial", event.target.value)}
-              placeholder="Nome juridico da empresa"
-              className="border-white/10 bg-white/5 text-white"
-            />
+        ) : (
+          <div className="grid gap-4">
+            {rows.map((row) => (
+              <div key={row.venda.id} className="rounded-3xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
+                <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                  <div className="space-y-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="text-lg font-semibold text-white">{row.veiculo?.modelo ?? "Veiculo vendido"}</div>
+                      {statusBadge(row.venda.nfe?.status)}
+                    </div>
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-white/50">
+                      <span>{row.veiculo?.ano ?? "Ano nao informado"}</span>
+                      <span>Venda em {new Date(row.venda.data).toLocaleDateString("pt-BR")}</span>
+                      <span>Vendedor: {row.vendedorNome}</span>
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <div className="rounded-2xl border border-white/10 bg-black/10 p-3"><div className="text-[11px] uppercase tracking-[0.18em] text-white/35">Valor</div><div className="mt-1 text-base font-semibold text-white">{formatCurrency(row.venda.valor)}</div></div>
+                      <div className="rounded-2xl border border-white/10 bg-black/10 p-3"><div className="text-[11px] uppercase tracking-[0.18em] text-white/35">Numero / serie</div><div className="mt-1 text-sm font-medium text-white">{row.venda.nfe?.numero ? `${row.venda.nfe.numero}${row.venda.nfe.serie ? ` / ${row.venda.nfe.serie}` : ""}` : "Aguardando emissao"}</div></div>
+                      <div className="rounded-2xl border border-white/10 bg-black/10 p-3"><div className="text-[11px] uppercase tracking-[0.18em] text-white/35">Atualizado em</div><div className="mt-1 text-sm font-medium text-white">{formatDate(row.venda.nfe?.ultimaAtualizacaoEm)}</div></div>
+                    </div>
+                  </div>
+                  <div className="w-full xl:max-w-[380px]">
+                    <div className="rounded-2xl border border-white/10 bg-black/10 p-3">
+                      <div className="text-[11px] uppercase tracking-[0.18em] text-white/35">Acoes</div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {canOperate ? (
+                          <Button type="button" onClick={() => setSelectedVendaId(row.venda.id)} className="bg-gradient-to-r from-amber-500 to-orange-500 font-semibold text-black hover:from-amber-400 hover:to-orange-400">
+                            <FileText className="mr-2 h-4 w-4" />
+                            {row.venda.nfe ? "Abrir nota" : "Emitir nota"}
+                          </Button>
+                        ) : (
+                          <div className="text-sm text-white/40">Aguardando ativacao do modulo fiscal.</div>
+                        )}
+                        {row.venda.nfe?.ref && (
+                          <Button type="button" variant="outline" onClick={() => void handleRefreshStatus(row.venda)} disabled={statusLoadingVendaId === row.venda.id} className="border-white/10 bg-white/5 text-white hover:bg-white/10">
+                            {statusLoadingVendaId === row.venda.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                            Atualizar status
+                          </Button>
+                        )}
+                        {row.venda.nfe?.danfeUrl && (
+                          <Button type="button" variant="outline" onClick={() => void handleDownload(row.venda.id, "danfe")} disabled={downloadingAsset === `${row.venda.id}-danfe`} className="border-amber-500/20 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20">
+                            {downloadingAsset === `${row.venda.id}-danfe` ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                            Salvar PDF
+                          </Button>
+                        )}
+                        {row.venda.nfe?.xmlUrl && (
+                          <Button type="button" variant="outline" onClick={() => void handleDownload(row.venda.id, "xml")} disabled={downloadingAsset === `${row.venda.id}-xml`} className="border-white/10 bg-white/5 text-white hover:bg-white/10">
+                            {downloadingAsset === `${row.venda.id}-xml` ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                            Salvar XML
+                          </Button>
+                        )}
+                        {row.venda.nfe?.danfeUrl && (
+                          <Button type="button" variant="outline" onClick={() => void handlePrint(row.venda.id)} disabled={downloadingAsset === `${row.venda.id}-print`} className="border-white/10 bg-white/5 text-white hover:bg-white/10">
+                            {downloadingAsset === `${row.venda.id}-print` ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Printer className="mr-2 h-4 w-4" />}
+                            Imprimir
+                          </Button>
+                        )}
+                        {row.venda.nfe?.status === "autorizada" && (
+                          <Button type="button" variant="outline" onClick={() => setSelectedVendaId(row.venda.id)} className="border-red-500/20 bg-red-500/5 text-red-300 hover:bg-red-500/10">Cancelar</Button>
+                        )}
+                      </div>
+                      {row.venda.nfe?.chave && (
+                        <div className="mt-3 rounded-2xl bg-white/5 p-3">
+                          <div className="text-[11px] uppercase tracking-[0.18em] text-white/35">Chave de acesso</div>
+                          <div className="mt-2 break-all font-mono text-xs text-white/80">{row.venda.nfe.chave}</div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
-
-          <div className="space-y-2">
-            <Label className="text-white/60">Nome Fantasia</Label>
-            <Input
-              value={form.nomeFantasia ?? ""}
-              onChange={(event) => setField("nomeFantasia", event.target.value)}
-              placeholder="Opcional"
-              className="border-white/10 bg-white/5 text-white"
-            />
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-3">
-            <div className="space-y-2 sm:col-span-1">
-              <Label className="text-white/60">Regime Tributario</Label>
-              <Select value={form.regimeTributario} onValueChange={(value) => setField("regimeTributario", value)}>
-                <SelectTrigger className="border-white/10 bg-white/5 text-white">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="border-white/10 bg-[hsl(230,18%,13%)]">
-                  {Object.entries(REGIME_LABELS).map(([value, label]) => (
-                    <SelectItem key={value} value={value} className="text-white">{label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label className="text-white/60">Telefone</Label>
-              <Input
-                value={form.telefone ?? ""}
-                onChange={(event) => setField("telefone", event.target.value)}
-                placeholder="(11) 99999-9999"
-                className="border-white/10 bg-white/5 text-white"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label className="text-white/60">E-mail fiscal</Label>
-              <Input
-                type="email"
-                value={form.email ?? ""}
-                onChange={(event) => setField("email", event.target.value)}
-                placeholder="fiscal@sualoja.com.br"
-                className="border-white/10 bg-white/5 text-white"
-              />
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 space-y-4">
-          <h2 className="text-sm font-semibold uppercase tracking-[0.15em] text-white/70">Endereco do Emitente</h2>
-
-          <div className="grid gap-4 sm:grid-cols-3">
-            <div className="space-y-2 sm:col-span-2">
-              <Label className="text-white/60">Logradouro</Label>
-              <Input
-                value={form.logradouro}
-                onChange={(event) => setField("logradouro", event.target.value)}
-                placeholder="Rua, avenida, travessa"
-                className="border-white/10 bg-white/5 text-white"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label className="text-white/60">Numero</Label>
-              <Input
-                value={form.numero}
-                onChange={(event) => setField("numero", event.target.value)}
-                placeholder="123"
-                className="border-white/10 bg-white/5 text-white"
-              />
-            </div>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label className="text-white/60">Complemento</Label>
-              <Input
-                value={form.complemento ?? ""}
-                onChange={(event) => setField("complemento", event.target.value)}
-                placeholder="Opcional"
-                className="border-white/10 bg-white/5 text-white"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label className="text-white/60">Bairro</Label>
-              <Input
-                value={form.bairro}
-                onChange={(event) => setField("bairro", event.target.value)}
-                placeholder="Centro"
-                className="border-white/10 bg-white/5 text-white"
-              />
-            </div>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label className="text-white/60">Municipio</Label>
-              <Input
-                value={form.municipio}
-                onChange={(event) => setField("municipio", event.target.value)}
-                placeholder="Sao Paulo"
-                className="border-white/10 bg-white/5 text-white"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label className="text-white/60">Codigo IBGE do municipio</Label>
-              <Input
-                value={form.codigoMunicipio}
-                onChange={(event) => setField("codigoMunicipio", event.target.value.replace(/\D/g, "").slice(0, 7))}
-                placeholder="3550308"
-                className="border-white/10 bg-white/5 text-white"
-              />
-            </div>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label className="text-white/60">UF</Label>
-              <Select value={form.uf} onValueChange={(value) => setField("uf", value)}>
-                <SelectTrigger className="border-white/10 bg-white/5 text-white">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="max-h-48 border-white/10 bg-[hsl(230,18%,13%)]">
-                  {UF_LIST.map((uf) => (
-                    <SelectItem key={uf} value={uf} className="text-white">{uf}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label className="text-white/60">CEP</Label>
-              <Input
-                value={form.cep}
-                onChange={(event) => setField("cep", formatCep(event.target.value))}
-                placeholder="00000-000"
-                className="border-white/10 bg-white/5 text-white"
-              />
-            </div>
-          </div>
-        </div>
-
-        <Button
-          type="submit"
-          disabled={saving}
-          className="w-full bg-gradient-to-r from-amber-500 to-orange-500 font-semibold text-black hover:from-amber-400 hover:to-orange-400"
-        >
-          {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-          {saving ? "Salvando..." : "Salvar configuracao da NF-e"}
-        </Button>
-
-        {!requiredFieldsComplete && (
-          <p className="text-center text-xs text-white/35">
-            Revise CNPJ, codigo IBGE, CEP e os campos obrigatorios do emitente antes de emitir.
-          </p>
         )}
-      </form>
+      </section>
 
-      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm text-white/55">
-        Status atual: {tenant?.nfeEnabled ? "modulo ativo" : "modulo aguardando ativacao"} e{" "}
-        {configured ? "integracao configurada" : "integracao ainda nao salva"}.
-      </div>
+      {selectedRow?.veiculo ? (
+        <NFeEmitirDialog
+          open={!!selectedRow}
+          onOpenChange={(open) => { if (!open) setSelectedVendaId(null); }}
+          venda={selectedRow.venda}
+          veiculo={selectedRow.veiculo}
+          onNfeEmitida={() => { void refreshRemoteState(); }}
+        />
+      ) : null}
     </div>
   );
 }
