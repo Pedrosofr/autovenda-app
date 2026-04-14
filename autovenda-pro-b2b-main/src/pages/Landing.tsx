@@ -397,7 +397,7 @@ const Hero = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8, delay: 0.8 }}
             >
-              Abandone a <span className="text-gradient font-bold drop-shadow-sm">planilha</span>, o <span className="text-gradient font-bold drop-shadow-sm">caderninho</span> e o caos do <span className="text-gradient font-bold drop-shadow-sm">WhatsApp</span>. Gestão profissional para quem quer escalar.
+              Pare de perder vendas esquecidas e sofrer com burocracias. <strong className="text-foreground font-bold">CRM com Metas, Consultas de Placa, Emissão de NF-e e Multi-Anúncios.</strong> Tudo em 1 único sistema.
             </motion.p>
           </div>
 
@@ -482,18 +482,18 @@ const Hero = () => {
 const PainPoints = () => {
   const pains = [
     {
-      title: "Estoque Desorganizado",
-      desc: "Você nunca sabe exatamente o que tem no pátio ou quanto pagou em cada veículo.",
-      icon: <Car className="w-6 h-6" />,
+      title: "Ralos de Dinheiro Invisíveis",
+      desc: "Veículos com passagem por leilão ou multas ocultas na hora da compra. Sem consultar rápido, você coloca uma bomba no pátio.",
+      icon: <ClipboardCheck className="w-6 h-6" />,
     },
     {
-      title: "Vendas Perdidas",
-      desc: "Leads que chegam pelo WhatsApp e são esquecidos por falta de acompanhamento.",
+      title: "Vendedores Descontrolados",
+      desc: "Quantos leads foram esquecidos no WhatsApp neste mês? Sem metas claras e histórico, você está rasgando orçamento de marketing.",
       icon: <Users className="w-6 h-6" />,
     },
     {
-      title: "Financeiro no Escuro",
-      desc: "Não saber se a loja deu lucro ou prejuízo no final do mês é um risco fatal.",
+      title: "O Caos da Burocracia",
+      desc: "Tempo perdido criando descrições manuais para anúncios, controlando custos reais no caderninho e sofrendo para emitir Nota Fiscal.",
       icon: <CircleDollarSign className="w-6 h-6" />,
     },
   ];
@@ -504,8 +504,8 @@ const PainPoints = () => {
       <div className="container mx-auto px-6">
         <SectionHeader 
           badge="O Problema"
-          title="Por que as revendas param de crescer?"
-          subtitle="O mercado de veículos mudou, mas muitas lojas ainda usam ferramentas do século passado."
+          title="Por que as revendas deixam tanto lucro na mesa?"
+          subtitle="Vender carros dá dinheiro, mas as falhas de operação drenam seu caixa diariamente. Quantos desses erros você comete?"
         />
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {pains.map((pain, i) => (
@@ -533,21 +533,21 @@ const PainPoints = () => {
 
 const Solution = () => {
   const features = [
-    { title: "Estoque Inteligente", desc: "Descrição automática de veículos economizando seu tempo e profissionalizando seus anúncios.", icon: <Car />, anim: "animate-car-move" },
-    { title: "CRM & Leads", desc: "Nunca mais perca um contato do WhatsApp ou portais.", icon: <Users />, anim: "animate-bounce-scale" },
-    { title: "Financeiro Real", desc: "Fluxo de caixa, DRE e comissões automáticas.", icon: <CircleDollarSign />, anim: "animate-coin-spin" },
-    { title: "Emissão de NF-e", desc: "Notas de entrada e saída em segundos.", icon: <FileText />, anim: "animate-doc-float" },
-    { title: "Anúncios Automáticos", desc: "Integração com os maiores portais do Brasil.", icon: <Megaphone />, anim: "animate-broadcast" },
-    { title: "RENAVE Integrado", desc: "Transferência digital direto pelo sistema.", icon: <ClipboardCheck />, anim: "animate-check-draw" },
+    { title: "Consultas de Veículos (All-in-One)", desc: "Consulte leilão, débitos e restrições em um clique. Pare de depender de despachantes externos e feche compras blindadas.", icon: <ClipboardCheck />, anim: "animate-check-draw" },
+    { title: "Gestão Ativa de Leads", desc: "Saiba quantos leads chegaram, veja quem os vendedores esqueceram e metrifique conversões. O cliente não esfria.", icon: <Users />, anim: "animate-bounce-scale" },
+    { title: "Emissão de NF-e e Fiscal", desc: "Esqueça a contabilidade travada. Emita notas fiscais de venda diretamente na plataforma de forma rápida e segura.", icon: <FileText />, anim: "animate-doc-float" },
+    { title: "Estoque & Multi-Anúncios", desc: "O sistema descreve o diferencial do carro pra você e anuncia nas principais plataformas de forma ágil e centralizada.", icon: <Megaphone />, anim: "animate-broadcast" },
+    { title: "Custo Real & Financeiro", desc: "Controle juros, manutenção, descontos e comissão. Descubra o lucro exato e o DRE da sua operação em tempo real.", icon: <CircleDollarSign />, anim: "animate-coin-spin" },
+    { title: "Cadastro Ultra Rápido", desc: "Apenas digite a placa e o módulo puxa todos os dados do veículo pra você ganhar horas de trabalho semanal.", icon: <Car />, anim: "animate-car-move" },
   ];
 
   return (
     <section className="py-24 bg-white/[0.01]">
       <div className="container mx-auto px-6">
         <SectionHeader 
-          badge="A Solução"
-          title="Tudo o que você precisa em um só lugar"
-          subtitle="Desenvolvemos o AutoVenda Pro ouvindo donos de revendas. É simples, rápido e poderoso."
+          badge="Nossa Plataforma (Plataforma Completa B2B)"
+          title="Controle Absoluto. Tudo em 1."
+          subtitle="Desenvolvemos a AutoVenda Pro focada no bolso do lojista. Eliminamos softwares paralelos para você operar com maestria."
         />
         <motion.div 
           className="rounded-[2.5rem] overflow-hidden border border-white/10 bg-white/[0.01] grid grid-cols-1 md:grid-cols-3 gap-[1px]"
@@ -616,9 +616,9 @@ const Solution = () => {
 
 const Differentials = () => {
   const diffs = [
-    { id: "01", title: "Estoque Inteligente", desc: "Descrição automática de veículos economizando seu tempo e profissionalizando seus anúncios." },
-    { id: "02", title: "Tudo em 1 aplicativo", desc: "Módulo de custo, consultas de placas (leilão, débitos, consulta completa) e gestão em um só lugar." },
-    { id: "03", title: "Foco em Mobilidade", desc: "Acesse sua loja de qualquer lugar, pelo celular ou tablet, com 100% de funcionalidade." },
+    { id: "01", title: "Basta de 'Picadinho' de Sistemas", desc: "Consultas veiculares detalhadas, emissão de nota fiscal (NF-e), DRE e gestão de pátio em uma tela só. Cancele ferramentas isoladas e tenha o ecossistema perfeito." },
+    { id: "02", title: "Gestão Visível de Vendedores", desc: "Tenha clareza real de quantos leads chegaram no mês e quais negócios estão parados. Estabeleça metas e deixe o sistema cobrar o comercial por você." },
+    { id: "03", title: "O Estoque que se Vende Sozinho", desc: "Cadastrou? A plataforma redige os detalhes e turbina a descrição de forma impecável, espalhando os anúncios para as maiores plataformas de classificados instantaneamente." },
   ];
 
   return (

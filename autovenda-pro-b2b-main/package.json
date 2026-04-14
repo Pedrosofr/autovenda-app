@@ -16,6 +16,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc -p tsconfig.node.json --noEmit",
+    "typecheck:frontend:strict": "tsc -p tsconfig.frontend-strict.json --noEmit",
     "test:e2e": "playwright test",
     "migrate:sqlite-to-postgres": "tsx scripts/migrate-sqlite-to-postgres.ts"
   },

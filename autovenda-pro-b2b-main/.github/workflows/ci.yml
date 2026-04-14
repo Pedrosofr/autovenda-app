@@ -30,6 +30,9 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Typecheck Frontend Strict (phase 1)
+        run: npm run typecheck:frontend:strict
+
       - name: Test
         run: npm run test
 
