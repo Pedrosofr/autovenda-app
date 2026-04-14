@@ -193,8 +193,6 @@ const SpotlightCard = ({ children, className }: { children: React.ReactNode; cla
   );
 };
 
-const SYSTEM_URL = ""; // SPA Local
-
 const PremiumButton = ({ children, className, href, ...props }: any) => {
   const navigate = useNavigate();
   const [loading, setLoading] = React.useState(false);
@@ -205,7 +203,7 @@ const PremiumButton = ({ children, className, href, ...props }: any) => {
       setLoading(false);
       if (href) {
         if (href.startsWith("http")) window.location.href = href;
-        else navigate(href === SYSTEM_URL ? "/login" : (href.replace(SYSTEM_URL, "/login")));
+        else navigate(href);
       }
     }, 1500);
     if (props.onClick) props.onClick(e);
@@ -288,8 +286,8 @@ const Navbar = () => {
         </div>
 
         <div className="flex items-center gap-5">
-          <PremiumButton href={SYSTEM_URL} variant="ghost" className="hidden sm:inline-flex text-sm font-semibold text-foreground/70 hover:text-foreground hover:bg-white/5">Entrar</PremiumButton>
-          <PremiumButton href={`${SYSTEM_URL}/?signup=1`} className="bg-accent text-accent-foreground hover:bg-accent/90 shadow-[0_8px_20px_-4px_rgba(var(--color-accent),0.4)] font-bold px-7 h-11 rounded-full">
+          <PremiumButton href="/login" variant="ghost" className="hidden sm:inline-flex text-sm font-semibold text-foreground/70 hover:text-foreground hover:bg-white/5">Entrar</PremiumButton>
+          <PremiumButton href="/login?signup=1" className="bg-accent text-accent-foreground hover:bg-accent/90 shadow-[0_8px_20px_-4px_rgba(var(--color-accent),0.4)] font-bold px-7 h-11 rounded-full">
             Testar Grátis
           </PremiumButton>
         </div>
@@ -409,7 +407,7 @@ const Hero = () => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.6 }}
           >
-            <PremiumButton href={`${SYSTEM_URL}/?signup=1`} size="lg" className="w-full sm:w-auto bg-accent text-accent-foreground hover:bg-accent/90 h-14 px-8 text-lg font-bold shadow-[0_0_40px_rgba(var(--color-accent),0.25)] shimmer group">
+            <PremiumButton href="/login?signup=1" size="lg" className="w-full sm:w-auto bg-accent text-accent-foreground hover:bg-accent/90 h-14 px-8 text-lg font-bold shadow-[0_0_40px_rgba(var(--color-accent),0.25)] shimmer group">
               Começar Agora
               <ArrowRight className="ml-2 w-5 h-5 transition-transform group-hover:translate-x-1" />
             </PremiumButton>
@@ -958,7 +956,7 @@ const Pricing = () => {
                   </motion.li>
                 ))}
               </ul>
-              <PremiumButton href={`${SYSTEM_URL}/?plan=${p.name.toLowerCase()}`} className={cn("w-full h-12 font-bold", p.popular ? "bg-accent text-accent-foreground hover:bg-accent/90" : "bg-white/5 hover:bg-white/10")}>
+              <PremiumButton href={`/login?plan=${p.name.toLowerCase()}`} className={cn("w-full h-12 font-bold", p.popular ? "bg-accent text-accent-foreground hover:bg-accent/90" : "bg-white/5 hover:bg-white/10")}>
                 Assinar Agora
               </PremiumButton>
               {p.popular && <div className="absolute -inset-4 bg-accent/5 blur-3xl rounded-[2rem] z-[-1]" />}
@@ -1079,7 +1077,7 @@ const FinalCTA = () => {
           </p>
 
           <div className="relative inline-block group w-full sm:w-auto px-4 sm:px-0">
-            <PremiumButton href={`${SYSTEM_URL}/?signup=1`} size="lg" className="w-full sm:w-auto bg-accent text-accent-foreground hover:bg-accent/90 h-16 px-12 text-xl font-bold shadow-[0_0_50px_rgba(var(--color-accent),0.3)] shimmer relative z-10">
+            <PremiumButton href="/login?signup=1" size="lg" className="w-full sm:w-auto bg-accent text-accent-foreground hover:bg-accent/90 h-16 px-12 text-xl font-bold shadow-[0_0_50px_rgba(var(--color-accent),0.3)] shimmer relative z-10">
               Garantir Meu Acesso Agora
               <ArrowRight className="ml-2 w-6 h-6 transition-transform group-hover:translate-x-1" />
             </PremiumButton>

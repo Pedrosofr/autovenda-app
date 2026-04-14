@@ -83,7 +83,7 @@ function SidebarNav() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const navigate = useNavigate();
-  const { logout, logoutAll, isPlatformAdmin, permissions, tenant, user } = useAuth();
+  const { logout, logoutAll, deleteAccount, isPlatformAdmin, permissions, tenant, user } = useAuth();
 
   const baseItems = isPlatformAdmin
     ? PLATFORM_NAV_ITEMS
@@ -178,6 +178,23 @@ function SidebarNav() {
                 </button>
               </SidebarMenuItem>
             )}
+            {!collapsed && (
+              <SidebarMenuItem>
+                <button
+                  type="button"
+                  className="w-full rounded-xl mx-3 mb-2 px-3 py-2.5 text-left text-[13px] text-red-300/80 hover:text-red-200 hover:bg-red-500/10 transition-all duration-200"
+                  onClick={async () => {
+                    const confirmed = window.confirm("Deseja excluir sua conta e encerrar todos os acessos?");
+                    if (!confirmed) return;
+                    await deleteAccount();
+                    toast.success("Conta removida com sucesso.");
+                    navigate("/", { replace: true });
+                  }}
+                >
+                  Excluir minha conta
+                </button>
+              </SidebarMenuItem>
+            )}
             <SidebarMenuItem>
               <SidebarMenuButton asChild>
                 <NavLink
@@ -204,7 +221,7 @@ function SidebarNav() {
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
-  const { user, tenant, isPlatformAdmin, logout, logoutAll } = useAuth();
+  const { user, tenant, isPlatformAdmin, logout, logoutAll, deleteAccount } = useAuth();
   const title = isPlatformAdmin ? "Console da plataforma" : tenant?.name ?? APP_BRAND_NAME;
   const subtitle = isPlatformAdmin
     ? "Controle lojas, trials e acessos em um lugar."
@@ -238,6 +255,21 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="hidden border-red-500/20 bg-red-500/10 px-2.5 text-red-300 hover:bg-red-500/20 lg:inline-flex"
+                onClick={async () => {
+                  const confirmed = window.confirm("Deseja excluir sua conta e encerrar todos os acessos?");
+                  if (!confirmed) return;
+                  await deleteAccount();
+                  toast.success("Conta removida com sucesso.");
+                  navigate("/", { replace: true });
+                }}
+              >
+                Excluir conta
+              </Button>
               <Button
                 type="button"
                 variant="outline"

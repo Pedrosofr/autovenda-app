@@ -17,6 +17,7 @@
     { "source": "/api/auth/forgot-password", "destination": "/api/auth/forgot-password" },
     { "source": "/api/auth/reset-password", "destination": "/api/auth/reset-password" },
     { "source": "/api/auth/accept-invite", "destination": "/api/auth/accept-invite" },
+    { "source": "/api/account", "destination": "/api/account" },
     { "source": "/api/app/state", "destination": "/api/app/state" },
     { "source": "/api/consultas/catalogo", "destination": "/api/consultas/catalogo" },
     { "source": "/api/consultas/executar", "destination": "/api/consultas/executar" },

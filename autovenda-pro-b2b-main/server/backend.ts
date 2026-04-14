@@ -22,6 +22,7 @@ import {
   createInviteForTenant,
   createTenantUserForPlatform,
   createSellerForTenant,
+  deleteAccount,
   createTenantWithOwner,
   enforceDistributedRateLimit,
   getDatabaseMode,
@@ -487,6 +488,15 @@ async function handleLogoutAll(headers: Record<string, string>): Promise<Respons
     await revokeAllSessionsForUser(result.session.userId);
   }
 
+  return json(200, { success: true }, {
+    "Set-Cookie": clearSessionCookieHeader(),
+  });
+}
+
+async function handleDeleteAccount(headers: Record<string, string>): Promise<ResponseShape> {
+  const result = await requireSession(headers, { allowRestrictedTenant: true });
+  if ("error" in result) return result.error;
+  await deleteAccount(result.session);
   return json(200, { success: true }, {
     "Set-Cookie": clearSessionCookieHeader(),
   });
@@ -2434,6 +2444,13 @@ export async function handleBackendRequest(request: RequestShape): Promise<Respo
         return withRequestId(json(405, { error: "Metodo nao permitido." }, { Allow: "POST" }));
       }
       return withRequestId(await handleLogoutAll(headers));
+    }
+
+    if (request.path === "/api/account") {
+      if (request.method !== "DELETE") {
+        return withRequestId(json(405, { error: "Metodo nao permitido." }, { Allow: "DELETE" }));
+      }
+      return withRequestId(await handleDeleteAccount(headers));
     }
 
     if (request.path === "/api/auth/forgot-password") {

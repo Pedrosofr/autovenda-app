@@ -2589,6 +2589,23 @@ export function revokeAllSessionsForUser(userId: number): Awaitable<void> {
   getDatabase().prepare("update sessions set revoked_at = ? where user_id = ? and revoked_at is null").run(nowIso(), userId);
 }
 
+export function deleteAccount(session: AuthenticatedSession): Awaitable<void> {
+  if (shouldUsePostgres()) {
+    return pgDeleteAccount(session);
+  }
+  const db = getDatabase();
+  const timestamp = nowIso();
+  db.prepare("update sessions set revoked_at = ? where user_id = ? and revoked_at is null").run(timestamp, session.userId);
+  db.prepare("update memberships set active = 0, updated_at = ? where user_id = ? and active = 1").run(timestamp, session.userId);
+  db.prepare("update users set active = 0, updated_at = ? where id = ?").run(timestamp, session.userId);
+  writeAuditLog(db, {
+    tenantId: session.tenantId ?? null,
+    actorUserId: session.userId,
+    action: "auth.account_deleted",
+    payload: { selfService: true },
+  });
+}
+
 export function listStores(): Awaitable<Array<Record<string, unknown>>> {
   if (shouldUsePostgres()) {
     return pgListStores();
@@ -3881,6 +3898,19 @@ async function pgRevokeSession(sessionId: number) {
 
 async function pgRevokeAllSessionsForUser(userId: number) {
   await pgQuery("update sessions set revoked_at = $1 where user_id = $2 and revoked_at is null", [nowIso(), userId]);
+}
+
+async function pgDeleteAccount(session: AuthenticatedSession) {
+  const timestamp = nowIso();
+  await pgQuery("update sessions set revoked_at = $1 where user_id = $2 and revoked_at is null", [timestamp, session.userId]);
+  await pgQuery("update memberships set active = false, updated_at = $1 where user_id = $2 and active = true", [timestamp, session.userId]);
+  await pgQuery("update users set active = false, updated_at = $1 where id = $2", [timestamp, session.userId]);
+  await writeAuditLogPg({
+    tenantId: session.tenantId ?? null,
+    actorUserId: session.userId,
+    action: "auth.account_deleted",
+    payload: { selfService: true },
+  });
 }
 
 type PgStoreRow = {

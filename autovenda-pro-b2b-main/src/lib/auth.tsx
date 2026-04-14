@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { AuthSession, UserRole } from "@/services/auth";
-import { loginRequest, logoutAllRequest, logoutRequest, validateSession, DEFAULT_SELLER_PERMISSIONS } from "@/services/auth";
+import { deleteAccountRequest, loginRequest, logoutAllRequest, logoutRequest, validateSession, DEFAULT_SELLER_PERMISSIONS } from "@/services/auth";
 
 type AuthContextValue = {
   user: AuthSession["user"] | null;
@@ -11,6 +11,7 @@ type AuthContextValue = {
   login: (email: string, password: string) => Promise<AuthSession>;
   logout: () => Promise<void>;
   logoutAll: () => Promise<void>;
+  deleteAccount: () => Promise<void>;
   refreshSession: () => Promise<AuthSession | null>;
 };
 
@@ -80,6 +81,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           await logoutAllRequest();
         } catch {
           // fallback de resiliencia: o backend limpa todas as sessoes quando disponivel
+        }
+      },
+      async deleteAccount() {
+        setSession(null);
+        try {
+          const storageKeys = Object.keys(localStorage).filter((k) => k.startsWith("rozzcar_"));
+          storageKeys.forEach((k) => localStorage.removeItem(k));
+        } catch {
+          // ignore storage errors
+        }
+        try {
+          await deleteAccountRequest();
+        } catch {
+          // backend is source of truth; user is logged out regardless
         }
       },
       refreshSession,

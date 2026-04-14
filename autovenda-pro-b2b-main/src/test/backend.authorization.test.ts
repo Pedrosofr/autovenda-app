@@ -415,4 +415,36 @@ describe("Autorizacao e isolamento multi-tenant", () => {
     expect(ownerState.vendas.find((item) => item.id === "sale-owner")?.valor).toBe(88900);
     expect(ownerState.vendas.find((item) => item.id === "sale-seller")?.valor).toBe(97900);
   });
+
+  it("permite exclusao da propria conta e invalida a sessao atual", async () => {
+    createTenantWithOwner({
+      storeName: "Auto Prime",
+      slug: "auto-prime",
+      ownerName: "Julia",
+      ownerEmail: "julia@autoprime.com",
+      ownerPassword: "123456",
+      trialDays: 7,
+      maxUsers: 5,
+    });
+
+    const ownerAuth = authenticateUser("julia@autoprime.com", "123456");
+    if (!ownerAuth) throw new Error("Falha ao autenticar owner.");
+
+    const deleteResponse = await apiRequest({
+      cookie: ownerAuth.cookieHeader,
+      method: "DELETE",
+      path: "/api/account",
+    });
+    expect(deleteResponse.status).toBe(200);
+
+    const sessionResponse = await apiRequest({
+      cookie: ownerAuth.cookieHeader,
+      method: "GET",
+      path: "/api/auth/session",
+    });
+    expect(sessionResponse.status).toBe(401);
+
+    const newLogin = authenticateUser("julia@autoprime.com", "123456");
+    expect(newLogin).toBeNull();
+  });
 });

@@ -121,3 +121,9 @@ export async function logoutAllRequest() {
     method: "POST",
   });
 }
+
+export async function deleteAccountRequest() {
+  return request<{ success: true }>("/api/account", {
+    method: "DELETE",
+  });
+}

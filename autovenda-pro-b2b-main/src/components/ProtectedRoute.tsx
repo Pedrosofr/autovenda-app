@@ -1,6 +1,7 @@
 import { Navigate, useLocation } from "react-router-dom";
 import { AlertTriangle, Loader2, Lock } from "lucide-react";
-import { hasRole, useAuth } from "@/lib/auth";
+import { useAuth } from "@/lib/auth";
+import { usePermissions } from "@/hooks/usePermissions";
 import type { UserRole, SellerPermissions } from "@/services/auth";
 
 export function ProtectedRoute({
@@ -12,7 +13,8 @@ export function ProtectedRoute({
   allowRoles?: UserRole[];
   requiredPermission?: keyof SellerPermissions;
 }) {
-  const { user, loading, tenant, isPlatformAdmin, permissions } = useAuth();
+  const { user, loading, tenant, isPlatformAdmin } = useAuth();
+  const { hasAllowedRole, hasSellerPermission } = usePermissions();
   const location = useLocation();
 
   if (loading) {
@@ -30,7 +32,7 @@ export function ProtectedRoute({
     return <Navigate to="/" replace state={{ from: location }} />;
   }
 
-  if (allowRoles && !hasRole(user.role, allowRoles)) {
+  if (!hasAllowedRole(allowRoles)) {
     return <Navigate to={isPlatformAdmin ? "/platform" : "/dashboard"} replace />;
   }
 
@@ -53,7 +55,7 @@ export function ProtectedRoute({
     return <Navigate to="/" replace />;
   }
 
-  if (requiredPermission && user.role === "seller" && !permissions.sellerPermissions[requiredPermission]) {
+  if (!hasSellerPermission(requiredPermission)) {
     return (
       <div className="min-h-[60vh] flex flex-col items-center justify-center gap-4 text-white/50">
         <div className="w-14 h-14 rounded-2xl bg-white/5 flex items-center justify-center">
