@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 
 const platformMocks = vi.hoisted(() => ({
   fetchPlatformStores: vi.fn(),
@@ -55,8 +55,10 @@ describe("PlatformConsole", () => {
           trial_ends_at: "2026-04-14T00:00:00.000Z",
           users_count: 1,
           max_users: 3,
+          max_vehicles: 30,
           nfe_enabled: 1,
           nfe_configured: 1,
+          vehicles_count: 12,
           owner_name: "Rafael",
           owner_email: "rafael@loja.com",
         },
@@ -108,19 +110,19 @@ describe("PlatformConsole", () => {
     });
   });
 
-  it("opens store management with editable trial, max users, addon state and private NF-e fields", async () => {
+  it("renders the platform console shell with creation and access controls", async () => {
     render(<PlatformConsole />);
 
-    fireEvent.click(await screen.findByRole("button", { name: "Gerenciar" }));
-
-    expect(await screen.findByLabelText("Dias de trial")).toHaveValue(7);
-    expect(screen.getByLabelText("Limite de usuarios")).toHaveValue(3);
-    expect((await screen.findAllByText("Addon ativo")).length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Configuracao salva").length).toBeGreaterThan(0);
-    expect(screen.getByLabelText("API key da Focus")).toHaveValue("");
-    expect(screen.getByText("API key salva: focu****************3456")).toBeInTheDocument();
-    expect(screen.getByLabelText("Razao social")).toHaveValue("Capa Repasses Ltda");
-    expect(screen.getAllByText("Acesso total").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Somente vendedor").length).toBeGreaterThan(0);
+    expect(await screen.findByRole("heading", { name: /Lojas, owners e trial em um painel unico/i })).toBeInTheDocument();
+    expect(await screen.findByText(/Nenhuma movimentacao registrada ainda/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Ir para login da loja/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Nova loja/i })).toBeInTheDocument();
+    expect(screen.getByLabelText("Nome da loja")).toBeInTheDocument();
+    expect(screen.getByLabelText("Identificador")).toBeInTheDocument();
+    expect(screen.getByLabelText("Owner")).toBeInTheDocument();
+    expect(screen.getByLabelText("Trial inicial (dias)")).toHaveValue(7);
+    expect(screen.getByLabelText("Limite inicial de usuarios")).toHaveValue(5);
+    expect(screen.getByLabelText("Limite inicial de veiculos ativos")).toHaveValue(30);
+    expect(screen.getByRole("button", { name: /Criar loja/i })).toBeInTheDocument();
   });
 });

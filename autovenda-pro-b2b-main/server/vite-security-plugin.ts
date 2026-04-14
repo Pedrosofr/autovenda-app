@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Plugin } from "vite";
 import { handleBackendRequest } from "./backend";
+import { createRequestId, logEvent, toErrorDetails } from "./observability";
 
 function readBody(req: IncomingMessage) {
   return new Promise<unknown>((resolve, reject) => {
@@ -51,16 +52,30 @@ export function securityApiPlugin(): Plugin {
         }
 
         const url = new URL(req.url, "http://localhost");
-        const body = await readBody(req);
-        const response = await handleBackendRequest({
-          method: req.method ?? "GET",
-          path: `${url.pathname}${url.search}`,
-          headers: req.headers as Record<string, string | string[] | undefined>,
-          body,
-          ip: req.socket.remoteAddress ?? "local",
-        });
+        const requestId = createRequestId();
 
-        writeResponse(res, response.status, response.headers, response.body);
+        try {
+          const body = await readBody(req);
+          const response = await handleBackendRequest({
+            method: req.method ?? "GET",
+            path: `${url.pathname}${url.search}`,
+            headers: req.headers as Record<string, string | string[] | undefined>,
+            body,
+            ip: req.socket.remoteAddress ?? "local",
+            requestId,
+          });
+
+          writeResponse(res, response.status, response.headers, response.body);
+        } catch (error) {
+          logEvent("error", "vite.api.error", {
+            requestId,
+            path: url.pathname,
+            error: toErrorDetails(error),
+          });
+          writeResponse(res, 500, { "Content-Type": "application/json; charset=utf-8" }, {
+            error: "Erro interno do servidor.",
+          });
+        }
       });
     },
   };

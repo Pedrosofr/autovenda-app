@@ -42,6 +42,64 @@ export interface AIDescriptionsResult {
   descricaoWhatsapp: string;
 }
 
+interface GeminiInlineDataPart {
+  inlineData: {
+    mimeType: string;
+    data: string;
+  };
+}
+
+interface GeminiTextPart {
+  text: string;
+}
+
+type GeminiPart = GeminiInlineDataPart | GeminiTextPart;
+
+interface GeminiRequestBody {
+  contents: Array<{
+    role: string;
+    parts: GeminiPart[];
+  }>;
+  generationConfig?: {
+    responseMimeType?: string;
+    temperature?: number;
+  };
+}
+
+interface GeminiContentPartResponse {
+  text?: string;
+}
+
+interface GeminiGenerateContentResponse {
+  candidates?: Array<{
+    content?: {
+      parts?: GeminiContentPartResponse[];
+    };
+  }>;
+}
+
+type CostEstimateParams = {
+  modelo: string;
+  ano: string;
+  custoCompra: string | number;
+  valorFipe: string | number;
+  config: ConfiguracaoPrecos;
+};
+
+type GeminiVehicleFactsPayload = {
+  modeloIdentificado?: string;
+  tituloBase?: string;
+  itensVisiveis?: unknown[];
+  fotosSugeridas?: unknown[];
+};
+
+type GeminiDescriptionPayload = {
+  titulo?: string;
+  descricaoOlx?: string;
+  descricaoMarketplace?: string;
+  descricaoWhatsapp?: string;
+};
+
 type VehicleCategory = "hatch" | "sedan" | "suv" | "pickup" | "utilitario" | "premium" | "geral";
 
 function inferVehicleCategory(modelo: string): VehicleCategory {
@@ -171,7 +229,7 @@ export async function analyzeVehicleWithGemini(
     contextoLoja?: string;
   }
 ): Promise<AIVehicleResult> {
-  const parts: any[] = [];
+  const parts: GeminiPart[] = [];
   const category = inferVehicleCategory(vehicleData.modelo);
 
   const dataText = `${VEHICLE_FACTS_PROMPT}\n\nDADOS: ${JSON.stringify(vehicleData)}\nCATEGORIA: ${category}\n${categoryGuidance(category)}`;
@@ -196,14 +254,14 @@ export async function analyzeVehicleWithGemini(
   });
 
   const text = json.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
-  const parsed = JSON.parse(text);
+  const parsed = JSON.parse(text) as GeminiVehicleFactsPayload;
 
   return {
     modeloIdentificado: sanitizeTitle(parsed.modeloIdentificado ?? ""),
     tituloBase: sanitizeTitle(parsed.tituloBase ?? ""),
     itensVisiveis: Array.isArray(parsed.itensVisiveis)
       ? parsed.itensVisiveis
-          .filter((i: any) => typeof i === 'string')
+          .filter((i): i is string => typeof i === "string")
           .map((i: string) => postFilterGeneratedText(sanitizeGeneratedText(i)))
           .filter(Boolean)
           .slice(0, 14)
@@ -229,7 +287,7 @@ export async function generateVehicleDescriptionsWithGemini(
     telefone?: string;
   }
 ): Promise<AIDescriptionsResult> {
-  const parts: any[] = [];
+  const parts: GeminiPart[] = [];
   const category = inferVehicleCategory(vehicleData.modelo);
 
   const promptFinal = PROMPT.replace("{{telefone}}", vehicleData.telefone || "");
@@ -255,7 +313,7 @@ export async function generateVehicleDescriptionsWithGemini(
   });
 
   const text = json.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
-  const parsed = JSON.parse(text);
+  const parsed = JSON.parse(text) as GeminiDescriptionPayload;
 
   const sanitize = (v: string) => postFilterGeneratedText(sanitizeGeneratedText(v ?? ""));
 
@@ -271,7 +329,7 @@ export async function generateVehicleDescriptionsWithGemini(
 export const analyzeVehicleWithClaude = analyzeVehicleWithGemini;
 export const generateVehicleDescriptions = generateVehicleDescriptionsWithGemini;
 
-async function postGeminiRequest(body: any) {
+async function postGeminiRequest(body: GeminiRequestBody): Promise<GeminiGenerateContentResponse> {
   const res = await fetch(API_URL, {
     method: "POST",
     credentials: "same-origin",
@@ -280,9 +338,23 @@ async function postGeminiRequest(body: any) {
   });
 
   if (!res.ok) {
-    const err = await res.text().catch(() => "");
-    console.error(`[Gemini] ${res.status}: ${err}`);
-    throw new Error("Falha ao gerar conteudo com IA. Tente novamente.");
+    const errText = await res.text().catch(() => "");
+    console.error(`[Gemini] ${res.status}: ${errText}`);
+
+    let parsed: unknown = null;
+    try {
+      parsed = JSON.parse(errText);
+    } catch {
+      parsed = null;
+    }
+
+    const message =
+      (parsed as { error?: string; detail?: string } | null)?.error
+      ?? (parsed as { error?: { message?: string } } | null)?.error?.message
+      ?? errText
+      ?? "Falha ao gerar conteudo com IA. Tente novamente.";
+
+    throw new Error(message);
   }
 
   return res.json();
@@ -312,7 +384,7 @@ function formatWhatsappText(value: string) {
   return value.split("\n").map(l => l.trim()).slice(0, 12).join("\n");
 }
 
-export async function estimarCustosVeiculo(params: any) {
+export async function estimarCustosVeiculo(params: CostEstimateParams) {
   // Implementação simplificada para o Gemini ou manter lógica via json
   const prompt = `Estime custos de reparo para ${params.modelo} ${params.ano} comprado por R$ ${params.custoCompra} (FIPE: R$ ${params.valorFipe}).
   Use os precos: Pintura R$ ${params.config.pinturaPorPeca}, Pneu R$ ${params.config.pneuPequeno}, Higienizacao R$ ${params.config.higienizacaoPequeno}.

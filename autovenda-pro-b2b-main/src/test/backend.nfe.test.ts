@@ -22,7 +22,7 @@ import {
 const VALID_CONFIG: NfeConfigData = {
   focusApiKey: "focus_live_secret_123456",
   ambiente: "homologacao",
-  cnpj: "12.345.678/0001-90",
+  cnpj: "45.723.174/0001-10",
   razaoSocial: "Loja Centro Veiculos Ltda",
   nomeFantasia: "Loja Centro",
   inscricaoEstadual: "123456789",
@@ -90,7 +90,7 @@ async function apiRequest(input: {
     path: input.path,
     headers: {
       cookie: input.cookie,
-      origin: "http://localhost:8080",
+      origin: "http://localhost:8082",
     },
     body: input.body,
   });
@@ -173,7 +173,7 @@ describe("NF-e backend", () => {
   beforeEach(() => {
     tempDir = mkdtempSync(join(tmpdir(), "autovenda-nfe-"));
     process.env.DATABASE_PATH = join(tempDir, "rozzcar.sqlite");
-    process.env.APP_BASE_URL = "http://localhost:8080";
+    process.env.APP_BASE_URL = "http://localhost:8082";
     process.env.PLATFORM_ADMIN_EMAIL = "admin@plataforma.local";
     process.env.PLATFORM_ADMIN_PASSWORD = "123456";
     process.env.PLATFORM_ADMIN_NAME = "Admin Plataforma";

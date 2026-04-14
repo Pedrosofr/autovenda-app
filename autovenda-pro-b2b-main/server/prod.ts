@@ -1,32 +1,29 @@
-/**
- * AutoVenda Pro — Servidor de producao (Railway)
- * Serve o frontend estático + rotas /api/* via handleBackendRequest
- */
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { readFileSync, existsSync, statSync } from "node:fs";
-import { join, extname } from "node:path";
+import { existsSync, readFileSync, statSync } from "node:fs";
+import { extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { handleBackendRequest } from "./backend.js";
+import { createRequestId, logEvent, toErrorDetails } from "./observability.js";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const DIST_DIR = join(__dirname, "../dist");
 const PORT = Number(process.env.PORT ?? 8080);
 
 const MIME: Record<string, string> = {
-  ".html":  "text/html; charset=utf-8",
-  ".js":    "application/javascript; charset=utf-8",
-  ".css":   "text/css; charset=utf-8",
-  ".json":  "application/json",
-  ".png":   "image/png",
-  ".jpg":   "image/jpeg",
-  ".jpeg":  "image/jpeg",
-  ".gif":   "image/gif",
-  ".svg":   "image/svg+xml",
-  ".ico":   "image/x-icon",
-  ".woff":  "font/woff",
+  ".html": "text/html; charset=utf-8",
+  ".js": "application/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".json": "application/json",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".gif": "image/gif",
+  ".svg": "image/svg+xml",
+  ".ico": "image/x-icon",
+  ".woff": "font/woff",
   ".woff2": "font/woff2",
-  ".ttf":   "font/ttf",
-  ".webp":  "image/webp",
+  ".ttf": "font/ttf",
+  ".webp": "image/webp",
 };
 
 const SECURITY_HEADERS: Record<string, string> = {
@@ -43,9 +40,17 @@ function readBody(req: IncomingMessage): Promise<unknown> {
     const chunks: Buffer[] = [];
     req.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
     req.on("end", () => {
-      if (!chunks.length) { resolve(undefined); return; }
+      if (!chunks.length) {
+        resolve(undefined);
+        return;
+      }
+
       const raw = Buffer.concat(chunks).toString("utf-8");
-      try { resolve(JSON.parse(raw)); } catch { resolve(raw); }
+      try {
+        resolve(JSON.parse(raw));
+      } catch {
+        resolve(raw);
+      }
     });
     req.on("error", reject);
   });
@@ -53,20 +58,23 @@ function readBody(req: IncomingMessage): Promise<unknown> {
 
 function clientIp(req: IncomingMessage): string {
   const forwarded = req.headers["x-forwarded-for"];
-  if (typeof forwarded === "string") return forwarded.split(",")[0].trim();
+  if (typeof forwarded === "string") {
+    return forwarded.split(",")[0].trim();
+  }
   return req.socket.remoteAddress ?? "unknown";
 }
 
 const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
-  Object.entries(SECURITY_HEADERS).forEach(([k, v]) => res.setHeader(k, v));
+  Object.entries(SECURITY_HEADERS).forEach(([key, value]) => res.setHeader(key, value));
 
   const url = new URL(req.url ?? "/", "http://localhost");
   const pathname = url.pathname;
 
-  // ── API routes ──────────────────────────────────────────────────────────
   if (pathname.startsWith("/api/")) {
+    const requestId = createRequestId();
     res.setHeader("Content-Type", "application/json; charset=utf-8");
     res.setHeader("Cache-Control", "no-store, no-cache");
+
     try {
       const body = await readBody(req);
       const response = await handleBackendRequest({
@@ -75,25 +83,29 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
         headers: req.headers as Record<string, string | string[] | undefined>,
         body,
         ip: clientIp(req),
+        requestId,
       });
+
       res.statusCode = response.status;
-      Object.entries(response.headers ?? {}).forEach(([k, v]) => res.setHeader(k, v));
+      Object.entries(response.headers ?? {}).forEach(([key, value]) => res.setHeader(key, value));
       res.end(JSON.stringify(response.body));
-    } catch (err) {
-      console.error("[API Error]", err);
+    } catch (error) {
+      logEvent("error", "server.api.error", {
+        requestId,
+        path: pathname,
+        error: toErrorDetails(error),
+      });
       res.statusCode = 500;
       res.end(JSON.stringify({ error: "Erro interno do servidor." }));
     }
+
     return;
   }
 
-  // ── Static files ────────────────────────────────────────────────────────
   const ext = extname(pathname);
   let filePath = join(DIST_DIR, pathname);
-
   const fileExists = existsSync(filePath) && statSync(filePath).isFile();
 
-  // SPA fallback: se nao é um arquivo estático, serve index.html
   if (!fileExists || !ext) {
     filePath = join(DIST_DIR, "index.html");
   }
@@ -106,7 +118,6 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
     if (extname(filePath) === ".html") {
       res.setHeader("Cache-Control", "no-cache, no-store");
     } else {
-      // Assets versionados pelo Vite podem ser cacheados por 1 ano
       res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
     }
 
@@ -119,11 +130,15 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
   }
 });
 
-server.on("error", (err) => {
-  console.error("[Server Error]", err);
+server.on("error", (error) => {
+  logEvent("error", "server.error", {
+    error: toErrorDetails(error),
+  });
 });
 
 server.listen(PORT, "0.0.0.0", () => {
-  console.log(`[AutoVenda Pro] Servidor rodando na porta ${PORT}`);
-  console.log(`[AutoVenda Pro] NODE_ENV: ${process.env.NODE_ENV ?? "production"}`);
+  logEvent("info", "server.started", {
+    port: PORT,
+    nodeEnv: process.env.NODE_ENV ?? "production",
+  });
 });

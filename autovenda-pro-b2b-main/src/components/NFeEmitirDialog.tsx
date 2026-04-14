@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   AlertCircle,
   CheckCircle2,
@@ -137,17 +137,7 @@ export function NFeEmitirDialog({ open, onOpenChange, venda, veiculo, onNfeEmiti
     setFormaPagamento(venda.nfe?.formaPagamento ?? "01");
   }, [open, venda]);
 
-  useEffect(() => {
-    if (!open || currentNfe?.status !== "pendente" || !currentNfe.ref) return;
-
-    const timer = window.setInterval(() => {
-      void handleRefreshStatus(true);
-    }, 8000);
-
-    return () => window.clearInterval(timer);
-  }, [currentNfe?.ref, currentNfe?.status, open]);
-
-  async function handleRefreshStatus(silent = false) {
+  const handleRefreshStatus = useCallback(async (silent = false) => {
     const ref = currentNfe?.ref ?? venda.nfe?.ref;
     if (!ref) return;
 
@@ -177,7 +167,17 @@ export function NFeEmitirDialog({ open, onOpenChange, venda, veiculo, onNfeEmiti
     } finally {
       setRefreshingStatus(false);
     }
-  }
+  }, [currentNfe, onNfeEmitida, venda.id, venda.nfe?.ref]);
+
+  useEffect(() => {
+    if (!open || currentNfe?.status !== "pendente" || !currentNfe.ref) return;
+
+    const timer = window.setInterval(() => {
+      void handleRefreshStatus(true);
+    }, 8000);
+
+    return () => window.clearInterval(timer);
+  }, [currentNfe?.ref, currentNfe?.status, handleRefreshStatus, open]);
 
   async function handleEmitir(event: React.FormEvent) {
     event.preventDefault();

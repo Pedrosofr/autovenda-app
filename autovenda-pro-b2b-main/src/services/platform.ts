@@ -5,10 +5,12 @@ export interface PlatformStoreSummary {
   status: "trial" | "active" | "past_due" | "blocked" | "closed";
   plan_code: string;
   max_users: number;
+  max_vehicles: number;
   trial_ends_at: string;
   nfe_enabled: number;
   nfe_configured: number;
   users_count: number;
+  vehicles_count: number;
   owner_name: string | null;
   owner_email: string | null;
 }
@@ -83,6 +85,7 @@ export async function createPlatformStore(payload: {
   ownerPassword: string;
   trialDays: number;
   maxUsers: number;
+  maxVehicles: number;
 }) {
   return request<{ success: true; stores: PlatformStoreSummary[] }>("/api/platform/stores", {
     method: "POST",
@@ -92,7 +95,7 @@ export async function createPlatformStore(payload: {
 
 export async function updatePlatformStore(
   storeId: number,
-  payload: { status?: PlatformStoreSummary["status"]; extendTrialDays?: number; trialDays?: number; maxUsers?: number; nfeEnabled?: boolean },
+  payload: { status?: PlatformStoreSummary["status"]; extendTrialDays?: number; trialDays?: number; maxUsers?: number; maxVehicles?: number; nfeEnabled?: boolean },
 ) {
   return request<{ success: true; stores: PlatformStoreSummary[] }>(`/api/platform/stores/${storeId}`, {
     method: "PATCH",

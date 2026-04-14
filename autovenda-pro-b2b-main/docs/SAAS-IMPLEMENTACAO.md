@@ -16,6 +16,7 @@
 - Nao separar por banco por loja no primeiro momento.
 - Nao construir billing sofisticado antes de validar trial e controle de acesso.
 - Um backend, um banco, uma modelagem com `tenant_id` em todas as tabelas de negocio.
+- O fluxo principal de entrada deve ser auto-cadastro da loja com criacao do `owner`; o painel da plataforma fica como apoio interno.
 
 ## Fase 1 - Base SaaS minima
 
@@ -31,6 +32,7 @@
   - relacao de usuario com loja e papel
   - entidades principais do dominio com `tenant_id`
 - Login server-side de verdade.
+- Auto-cadastro da loja para o proprio dono/responsavel.
 - Sessao autenticada com token ou cookie.
 - Primeira migracao do estado atual de `localStorage` para API.
 - Painel continua igual na UI, mas lendo e gravando no backend.
@@ -38,6 +40,7 @@
 **Decisoes praticas**
 
 - Comecar com uma unica loja por conta, mesmo que o modelo ja permita mais de uma.
+- O primeiro usuario da loja nasce como `owner` no proprio cadastro.
 - Manter o front praticamente igual.
 - Criar API CRUD basica para veiculos, leads, vendedores, vendas, custos e configuracoes.
 
@@ -60,7 +63,7 @@
 
 - `tenant_id` em todas as consultas e mutacoes.
 - Middleware de autorizacao para filtrar dados por loja.
-- Convite ou criacao inicial da loja no cadastro.
+- Criacao inicial da loja no cadastro e convites para o owner montar a propria equipe depois.
 - Usuario autenticado sempre vinculado a uma loja ativa.
 - Separacao de dados de demo, teste e producao.
 
@@ -119,6 +122,7 @@
 - Papel `owner`:
   - administra loja
   - convida usuarios
+  - monta a propria equipe apos o auto-cadastro
   - ve configuracoes e status
   - acessa relatorios da propria loja
 - Papel `seller`:
@@ -225,6 +229,8 @@
 ## Definicao de sucesso
 
 - Uma nova loja entra, cria conta, inicia trial e usa o sistema sem ver dados de outra loja.
+- O dono da loja consegue se cadastrar sozinho sem depender do admin da plataforma.
+- Depois do primeiro login, o `owner` consegue convidar sua equipe para cada pessoa criar o proprio acesso.
 - O `owner` gerencia a loja.
 - O `seller` opera o dia a dia.
 - O admin central enxerga e controla todas as lojas.

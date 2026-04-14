@@ -1,5 +1,5 @@
 import { startTransition, useEffect, useState } from "react";
-import { Crown, Loader2, Settings2, Target, UserPlus, Users2 } from "lucide-react";
+import { Crown, Loader2, Mail, Settings2, Target, Users2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -9,13 +9,12 @@ import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useAuth } from "@/lib/auth";
-import { createSeller, fetchTeamMembers, updateMemberPermissions, type TeamMember } from "@/services/team";
+import { fetchTeamMembers, inviteTeamMember, revokeTeamInvite, updateMemberPermissions, type TeamInvite, type TeamMember } from "@/services/team";
 import { DEFAULT_SELLER_PERMISSIONS, type SellerPermissions } from "@/services/auth";
 
 const INITIAL_FORM = {
   name: "",
   email: "",
-  password: "",
   salesGoalMonthly: "",
   role: "seller" as "owner" | "seller",
 };
@@ -26,10 +25,7 @@ const PERMISSION_LABELS: { key: keyof SellerPermissions; label: string; descript
   { key: "adicionarVeiculo", label: "Adicionar Veiculo", description: "Cadastrar novos veiculos no estoque" },
   { key: "editarVeiculo", label: "Editar Veiculo", description: "Editar informacoes e fotos de veiculos" },
   { key: "excluirVeiculo", label: "Arquivar / Excluir Veiculo", description: "Arquivar ou remover veiculos do estoque" },
-  { key: "verConsulta", label: "Consulta Veicular", description: "Consultar placas e FIPE" },
   { key: "verPosVenda", label: "Pos-Venda", description: "Ver e gerenciar tarefas de pos-venda" },
-  { key: "verCustos", label: "Custos", description: "Acessar modulo de custos e reparos" },
-  { key: "verCreditos", label: "Creditos", description: "Ver saldo e historico de creditos" },
 ];
 
 function parsePermissions(raw: string | null | undefined): SellerPermissions {
@@ -44,8 +40,10 @@ function parsePermissions(raw: string | null | undefined): SellerPermissions {
 export default function TeamManagement() {
   const { tenant } = useAuth();
   const [members, setMembers] = useState<TeamMember[]>([]);
+  const [invites, setInvites] = useState<TeamInvite[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [revokingInviteId, setRevokingInviteId] = useState<number | null>(null);
   const [form, setForm] = useState(INITIAL_FORM);
   const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
   const [editingPerms, setEditingPerms] = useState<SellerPermissions>(DEFAULT_SELLER_PERMISSIONS);
@@ -55,9 +53,12 @@ export default function TeamManagement() {
     let active = true;
 
     fetchTeamMembers()
-      .then(({ members: nextMembers }) => {
+      .then(({ members: nextMembers, invites: nextInvites }) => {
         if (!active) return;
-        startTransition(() => setMembers(nextMembers));
+        startTransition(() => {
+          setMembers(nextMembers);
+          setInvites(nextInvites);
+        });
       })
       .catch((error) => {
         toast.error(error instanceof Error ? error.message : "Nao foi possivel carregar a equipe.");
@@ -71,26 +72,49 @@ export default function TeamManagement() {
     };
   }, []);
 
-  const handleCreateSeller = async (event: React.FormEvent) => {
+  const handleInvite = async (event: React.FormEvent) => {
     event.preventDefault();
     setSubmitting(true);
 
     try {
-      const response = await createSeller({
+      const response = await inviteTeamMember({
         name: form.name,
         email: form.email,
-        password: form.password,
         role: form.role,
         salesGoalMonthly: form.salesGoalMonthly ? Number(form.salesGoalMonthly) : null,
       });
 
-      startTransition(() => setMembers(response.members));
+      startTransition(() => {
+        setMembers(response.members);
+        setInvites(response.invites);
+      });
       setForm(INITIAL_FORM);
-      toast.success("Usuario criado com sucesso.");
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(response.inviteUrl);
+        toast.success("Convite enviado. O link foi copiado para facilitar o compartilhamento.");
+      } else {
+        toast.success("Convite enviado com sucesso.");
+      }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Nao foi possivel criar o usuario.");
+      toast.error(error instanceof Error ? error.message : "Nao foi possivel enviar o convite.");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleRevokeInvite = async (inviteId: number) => {
+    setRevokingInviteId(inviteId);
+    try {
+      const response = await revokeTeamInvite(inviteId);
+      startTransition(() => {
+        setMembers(response.members);
+        setInvites(response.invites);
+      });
+      toast.success("Convite cancelado.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Nao foi possivel cancelar o convite.");
+    } finally {
+      setRevokingInviteId(null);
     }
   };
 
@@ -128,9 +152,12 @@ export default function TeamManagement() {
         <p className="max-w-3xl text-sm leading-6 text-white/55">
           {tenant?.name ?? "Sua loja"} fica com acessos separados, metas mensais e historico unico por conta.
         </p>
+        <p className="max-w-3xl text-sm leading-6 text-white/40">
+          O owner entra por cadastro proprio e depois monta a equipe daqui, convidando cada pessoa para criar o proprio acesso.
+        </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4">
         <Card className="border-white/10 bg-white/[0.03] text-white shadow-none">
           <CardHeader className="pb-3">
             <CardDescription className="text-white/45">Usuarios ativos</CardDescription>
@@ -145,6 +172,12 @@ export default function TeamManagement() {
         </Card>
         <Card className="border-white/10 bg-white/[0.03] text-white shadow-none">
           <CardHeader className="pb-3">
+            <CardDescription className="text-white/45">Convites pendentes</CardDescription>
+            <CardTitle className="text-3xl">{invites.filter((invite) => invite.status === "pending").length}</CardTitle>
+          </CardHeader>
+        </Card>
+        <Card className="border-white/10 bg-white/[0.03] text-white shadow-none">
+          <CardHeader className="pb-3">
             <CardDescription className="text-white/45">Meta total do time</CardDescription>
             <CardTitle className="text-3xl">
               {members.reduce((total, member) => total + (member.meta_mensal ?? 0), 0)}
@@ -153,16 +186,16 @@ export default function TeamManagement() {
         </Card>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[1fr,1.2fr]">
+      <div className="grid gap-6 lg:grid-cols-[0.95fr,1.25fr]">
         <Card className="border-white/10 bg-[linear-gradient(180deg,rgba(31,41,55,0.85),rgba(15,23,42,0.92))] text-white shadow-none">
           <CardHeader className="p-4 sm:p-6">
-            <CardTitle className="text-lg sm:text-xl">Novo usuario da loja</CardTitle>
+            <CardTitle className="text-lg sm:text-xl">Convidar novo acesso</CardTitle>
             <CardDescription className="text-white/45">
-              Crie acessos com perfil administrativo ou somente operacional, sem compartilhar a senha principal da loja.
+              Sempre prefira esse fluxo: envie o convite por e-mail e deixe a propria pessoa criar a senha ao entrar na loja.
             </CardDescription>
           </CardHeader>
           <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0">
-            <form className="space-y-4" onSubmit={handleCreateSeller}>
+            <form className="space-y-4" onSubmit={handleInvite}>
               <div className="space-y-2">
                 <Label htmlFor="sellerName" className="text-white/70">Nome</Label>
                 <Input
@@ -183,18 +216,6 @@ export default function TeamManagement() {
                   onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))}
                   className="border-white/10 bg-black/20 text-white"
                   placeholder="vendedor@loja.com"
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="sellerPassword" className="text-white/70">Senha inicial</Label>
-                <Input
-                  id="sellerPassword"
-                  type="password"
-                  value={form.password}
-                  onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))}
-                  className="border-white/10 bg-black/20 text-white"
-                  placeholder="Crie uma senha"
                   required
                 />
               </div>
@@ -251,9 +272,12 @@ export default function TeamManagement() {
               </div>
 
               <Button type="submit" disabled={submitting} className="w-full card-gradient-blue text-white">
-                {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserPlus className="mr-2 h-4 w-4" />}
-                Criar usuario
+                {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Mail className="mr-2 h-4 w-4" />}
+                Enviar convite
               </Button>
+              <p className="text-xs leading-5 text-white/40">
+                O convite expira em 7 dias. Se o e-mail nao disparar, o link tambem fica copiado para envio manual.
+              </p>
             </form>
           </CardContent>
         </Card>
@@ -262,7 +286,7 @@ export default function TeamManagement() {
           <CardHeader>
             <CardTitle className="text-xl">Acessos da loja</CardTitle>
             <CardDescription className="text-white/45">
-              Clique em "Permissoes" para configurar o que cada vendedor pode ver e fazer.
+              Time ativo e convites pendentes em um lugar so. O owner ajusta apenas os modulos operacionais do vendedor.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -272,7 +296,60 @@ export default function TeamManagement() {
                 Carregando equipe...
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <div className="space-y-3">
+              <div className="grid gap-3 md:hidden">
+                {members.map((member) => (
+                  <div key={member.id} className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-500/10 text-blue-300">
+                        <Users2 className="h-4 w-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="truncate font-semibold text-white">{member.nome}</div>
+                        <div className="truncate text-xs text-white/45">{member.email}</div>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Badge
+                        variant="outline"
+                        className={`text-[10px] ${
+                          member.papel === "owner"
+                            ? "border-blue-500/20 bg-blue-500/10 text-blue-300"
+                            : "border-white/10 bg-white/5 text-white/70"
+                        }`}
+                      >
+                        {member.papel === "owner" ? "Acesso total" : "Vendedor"}
+                      </Badge>
+                      <Badge
+                        variant="outline"
+                        className={`text-[10px] ${
+                          member.ativo
+                            ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-300"
+                            : "border-red-500/20 bg-red-500/10 text-red-300"
+                        }`}
+                      >
+                        {member.ativo ? "Ativo" : "Inativo"}
+                      </Badge>
+                    </div>
+                    <div className="mt-3 flex items-center justify-between text-sm text-white/65">
+                      <span>Meta: {member.meta_mensal ?? 0}</span>
+                      <span>{new Date(member.criado_em).toLocaleDateString("pt-BR")}</span>
+                    </div>
+                    {member.papel === "seller" && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="mt-3 w-full border-white/10 bg-white/5 text-white/70 hover:bg-white/10 hover:text-white"
+                        onClick={() => openPermissions(member)}
+                      >
+                        <Settings2 className="mr-2 h-3.5 w-3.5" />
+                        Permissoes
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <div className="hidden overflow-x-auto md:block">
               <Table>
                 <TableHeader>
                   <TableRow className="border-white/10 hover:bg-transparent">
@@ -349,6 +426,55 @@ export default function TeamManagement() {
                 </TableBody>
               </Table>
               </div>
+              {invites.length > 0 && (
+                <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-semibold text-white">Convites pendentes</div>
+                      <div className="text-xs text-white/45">Acompanhe quem ainda precisa criar a senha.</div>
+                    </div>
+                    <Badge variant="outline" className="border-amber-500/20 bg-amber-500/10 text-amber-300">
+                      {invites.filter((invite) => invite.status === "pending").length} pendente(s)
+                    </Badge>
+                  </div>
+                  <div className="mt-3 space-y-2">
+                    {invites.map((invite) => (
+                      <div key={invite.id} className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-semibold text-white">{invite.nome}</div>
+                          <div className="truncate text-xs text-white/45">{invite.email}</div>
+                          <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-white/45">
+                            <span>{invite.papel === "owner" ? "Acesso total" : "Vendedor"}</span>
+                            <span>Expira em {new Date(invite.expires_em).toLocaleDateString("pt-BR")}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge
+                            variant="outline"
+                            className={invite.status === "pending"
+                              ? "border-amber-500/20 bg-amber-500/10 text-amber-300"
+                              : "border-white/10 bg-white/5 text-white/60"}
+                          >
+                            {invite.status === "pending" ? "Pendente" : invite.status === "expired" ? "Expirado" : invite.status === "accepted" ? "Aceito" : "Cancelado"}
+                          </Badge>
+                          {invite.status === "pending" && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-white/10 bg-white/5 text-white/70 hover:bg-white/10 hover:text-white"
+                              onClick={() => void handleRevokeInvite(invite.id)}
+                              disabled={revokingInviteId === invite.id}
+                            >
+                              {revokingInviteId === invite.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <X className="h-3.5 w-3.5" />}
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              </div>
             )}
           </CardContent>
         </Card>
@@ -362,7 +488,7 @@ export default function TeamManagement() {
               Permissoes — {editingMember?.nome}
             </DialogTitle>
             <p className="text-sm text-white/45 mt-1">
-              Ative ou desative o acesso a cada modulo para este vendedor.
+              Ative ou desative apenas os modulos operacionais. Financeiro, vendas, consultas, equipe e NF-e seguem restritos ao owner.
             </p>
           </DialogHeader>
 

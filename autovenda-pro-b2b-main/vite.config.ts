@@ -6,12 +6,16 @@ import { securityApiPlugin } from "./server/vite-security-plugin";
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
-  Object.assign(process.env, env);
+  Object.entries(env).forEach(([key, value]) => {
+    if (process.env[key] === undefined) {
+      process.env[key] = value;
+    }
+  });
 
   return {
     server: {
       host: "::",
-      port: 8080,
+      port: 8082,
     },
     plugins: [react(), securityApiPlugin(), mode === "development" && componentTagger()].filter(Boolean),
     resolve: {

@@ -182,22 +182,15 @@ export interface ConsultaVeicular {
   placa: string;
   veiculoId?: string;
   data: string;
-  resultado: {
-    marca: string;
-    modelo: string;
-    ano: string;
-    cor: string;
-    situacao: string;
-    multas: number | null;
-    debitos: string | null;
-    leilao: boolean | null;
-    roubo: boolean | null;
-    recall?: boolean | null;
-    valorFipe?: string | null;
-    codigoFipe?: string | null;
-    mesReferenciaFipe?: string | null;
-    combustivelFipe?: string | null;
-  };
+  marca?: string;
+  modelo?: string;
+  ano?: string;
+  consultaTitulo: string;
+  consultaResumo?: string;
+  statusLabel: string;
+  moduleIds: import("../lib/consulta-modules").ConsultationModuleId[];
+  totalPriceCents: number;
+  resultados: import("../lib/consulta-modules").ConsultationModuleResult[];
 }
 
 export interface ConfiguracaoPrecos {

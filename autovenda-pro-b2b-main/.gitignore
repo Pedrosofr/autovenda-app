@@ -23,6 +23,10 @@ data/*.sqlite-wal
 output/
 .lt*
 *.bak
+.tmp/
+playwright-report/
+test-results/
+*.tsbuildinfo
 
 # Vite timestamp cache
 vite.config.ts.timestamp-*

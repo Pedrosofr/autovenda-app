@@ -38,6 +38,7 @@ const INITIAL_STORE_FORM = {
   ownerPassword: "",
   trialDays: "7",
   maxUsers: "5",
+  maxVehicles: "30",
 };
 
 const INITIAL_USER_FORM = {
@@ -196,7 +197,7 @@ export default function PlatformConsole() {
   const [activity, setActivity] = useState<AuditEvent[]>([]);
   const [activityLoading, setActivityLoading] = useState(true);
   const [storeForm, setStoreForm] = useState(INITIAL_STORE_FORM);
-  const [manageSettings, setManageSettings] = useState({ trialDays: "7", maxUsers: "5" });
+  const [manageSettings, setManageSettings] = useState({ trialDays: "7", maxUsers: "5", maxVehicles: "30" });
   const [nfeSettings, setNfeSettings] = useState(INITIAL_NFE_STATUS);
   const [nfeForm, setNfeForm] = useState(INITIAL_NFE_FORM);
   const [userForm, setUserForm] = useState(INITIAL_USER_FORM);
@@ -287,6 +288,7 @@ export default function PlatformConsole() {
         ownerPassword: storeForm.ownerPassword,
         trialDays: Number(storeForm.trialDays || "7"),
         maxUsers: Number(storeForm.maxUsers || "5"),
+        maxVehicles: Number(storeForm.maxVehicles || "30"),
       });
 
       startTransition(() => setStores(response.stores));
@@ -305,6 +307,7 @@ export default function PlatformConsole() {
     setManageSettings({
       trialDays: "7",
       maxUsers: String(store.max_users),
+      maxVehicles: String(store.max_vehicles),
     });
     setUserForm(INITIAL_USER_FORM);
     setNfeForm({ ...INITIAL_NFE_FORM });
@@ -392,6 +395,7 @@ export default function PlatformConsole() {
       const response = await updatePlatformStore(selectedStore.id, {
         trialDays: Number(manageSettings.trialDays || "7"),
         maxUsers: Number(manageSettings.maxUsers || String(selectedStore.max_users)),
+        maxVehicles: Number(manageSettings.maxVehicles || String(selectedStore.max_vehicles)),
       });
 
       const nextSelectedStore = response.stores.find((store) => store.id === selectedStore.id) ?? selectedStore;
@@ -401,6 +405,7 @@ export default function PlatformConsole() {
         setManageSettings((current) => ({
           ...current,
           maxUsers: String(nextSelectedStore.max_users),
+          maxVehicles: String(nextSelectedStore.max_vehicles),
         }));
       });
       void refreshActivity();
@@ -418,7 +423,7 @@ export default function PlatformConsole() {
     setUpdatingStoreId(selectedStore.id);
     try {
       const response = await updatePlatformStore(selectedStore.id, {
-        nfeEnabled: !Boolean(selectedStore.nfe_enabled),
+        nfeEnabled: !selectedStore.nfe_enabled,
       });
 
       const nextSelectedStore = response.stores.find((store) => store.id === selectedStore.id) ?? selectedStore;
@@ -522,6 +527,9 @@ export default function PlatformConsole() {
         <h1 className="text-3xl font-bold tracking-tight">Lojas, owners e trial em um painel unico</h1>
         <p className="max-w-3xl text-sm leading-6 text-white/55">
           Cada loja nasce isolada, com owner proprio, periodo de trial configuravel e limite de usuarios sem misturar dados.
+        </p>
+        <p className="max-w-3xl text-sm leading-6 text-white/40">
+          O caminho padrao do produto e a propria loja se cadastrar sozinha; este painel fica como controle interno e apoio operacional.
         </p>
         <div className="pt-2">
           <Button
@@ -701,6 +709,18 @@ export default function PlatformConsole() {
                   />
                 </div>
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="maxVehicles" className="text-white/70">Limite inicial de veiculos ativos</Label>
+                <Input
+                  id="maxVehicles"
+                  type="number"
+                  min="1"
+                  value={storeForm.maxVehicles}
+                  onChange={(event) => handleStoreField("maxVehicles", event.target.value)}
+                  className="border-white/10 bg-black/20 text-white"
+                  required
+                />
+              </div>
 
               <Button type="submit" disabled={submittingStore} className="w-full card-gradient-blue text-white">
                 {submittingStore ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
@@ -724,8 +744,107 @@ export default function PlatformConsole() {
                 Carregando lojas...
               </div>
             ) : (
-              <div className="overflow-x-auto">
-              <Table>
+              <div className="space-y-3">
+                <div className="grid gap-3 md:hidden">
+                  {stores.map((store) => (
+                    <div key={store.id} className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                      <div className="flex items-start gap-3">
+                        <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-500/10 text-blue-300">
+                          <Building2 className="h-4 w-4" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="font-semibold text-white">{store.name}</div>
+                          <div className="truncate text-xs lowercase text-white/45">{store.slug}</div>
+                          <div className="mt-2 text-sm font-medium text-white">{store.owner_name ?? "Sem owner"}</div>
+                          <div className="truncate text-xs text-white/45">{store.owner_email ?? "Sem e-mail"}</div>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <Badge variant="outline" className={statusClassName(store.status)}>
+                          {statusLabel(store.status)}
+                        </Badge>
+                        <Badge
+                          variant="outline"
+                          className={
+                            store.nfe_enabled
+                              ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-300"
+                              : "border-white/10 bg-white/5 text-white/60"
+                          }
+                        >
+                          {nfeAddonLabel(store.nfe_enabled)}
+                        </Badge>
+                      </div>
+
+                      <div className="mt-4 grid grid-cols-2 gap-3 text-xs text-white/60">
+                        <div>
+                          <div className="uppercase tracking-[0.18em] text-white/35">Usuarios</div>
+                          <div className="mt-1 text-sm text-white">{store.users_count}/{store.max_users} usuarios</div>
+                          <div className="text-xs text-white/55">{store.vehicles_count}/{store.max_vehicles} veiculos ativos</div>
+                        </div>
+                        <div>
+                          <div className="uppercase tracking-[0.18em] text-white/35">Trial</div>
+                          <div className="mt-1 text-sm text-white">{formatTrialDate(store.trial_ends_at)}</div>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 grid grid-cols-2 gap-2">
+                        <Button type="button" variant="outline" size="sm" className="border-white/10 bg-white/5 text-white hover:bg-white/10" onClick={() => openStoreManagement(store)}>
+                          Gerenciar
+                        </Button>
+                        <Button type="button" variant="outline" size="sm" className="border-blue-500/20 bg-blue-500/10 text-blue-300 hover:bg-blue-500/20" onClick={() => { void handleGoToStoreLogin(store); }}>
+                          Login
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="border-white/10 bg-white/5 text-white hover:bg-white/10"
+                          disabled={updatingStoreId === store.id}
+                          onClick={() => handleQuickStatusUpdate(store.id, { extendTrialDays: 7 }, "Trial estendido em 7 dias.")}
+                        >
+                          {updatingStoreId === store.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                          +7d
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className={store.nfe_enabled ? "border-amber-500/20 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20" : "border-white/10 bg-white/5 text-white/50 hover:bg-white/10"}
+                          disabled={updatingStoreId === store.id}
+                          onClick={() => handleQuickStatusUpdate(store.id, { nfeEnabled: !store.nfe_enabled }, store.nfe_enabled ? "NF-e desativado." : "NF-e ativado.")}
+                        >
+                          NF-e {store.nfe_enabled ? "ON" : "OFF"}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="border-emerald-500/20 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20"
+                          disabled={updatingStoreId === store.id}
+                          onClick={() => handleQuickStatusUpdate(store.id, { status: "active" }, "Loja ativada.")}
+                        >
+                          Ativar
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="border-red-500/20 bg-red-500/10 text-red-300 hover:bg-red-500/20"
+                          disabled={updatingStoreId === store.id}
+                          onClick={() => handleQuickStatusUpdate(store.id, { status: "blocked" }, "Loja bloqueada.")}
+                        >
+                          Bloquear
+                        </Button>
+                      </div>
+
+                      <div className="mt-3 text-xs text-white/45">{nfeConfigLabel(store.nfe_configured)}</div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="hidden overflow-x-auto md:block">
+                <Table>
                 <TableHeader>
                   <TableRow className="border-white/10 hover:bg-transparent">
                     <TableHead className="text-white/45">Loja</TableHead>
@@ -775,7 +894,10 @@ export default function PlatformConsole() {
                           <div className="text-xs text-white/45">{nfeConfigLabel(store.nfe_configured)}</div>
                         </div>
                       </TableCell>
-                      <TableCell className="text-white/75">{store.users_count}/{store.max_users}</TableCell>
+                      <TableCell className="text-white/75">
+                        <div>{store.users_count}/{store.max_users} usuarios</div>
+                        <div className="text-xs text-white/45">{store.vehicles_count}/{store.max_vehicles} veiculos</div>
+                      </TableCell>
                       <TableCell className="text-white/65">{formatTrialDate(store.trial_ends_at)}</TableCell>
                       <TableCell>
                         <div className="flex flex-wrap justify-end gap-1.5">
@@ -845,7 +967,8 @@ export default function PlatformConsole() {
                     </TableRow>
                   ))}
                 </TableBody>
-              </Table>
+                </Table>
+                </div>
               </div>
             )}
           </CardContent>
@@ -857,7 +980,7 @@ export default function PlatformConsole() {
           <DialogHeader>
             <DialogTitle>Gerenciar loja</DialogTitle>
             <DialogDescription className="text-white/45">
-              {selectedStore ? `${selectedStore.name} (${selectedStore.users_count}/${selectedStore.max_users} usuarios)` : "Controle trial e acessos."}
+              {selectedStore ? `${selectedStore.name} (${selectedStore.users_count}/${selectedStore.max_users} usuarios · ${selectedStore.vehicles_count}/${selectedStore.max_vehicles} veiculos)` : "Controle trial e acessos."}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-6 grid-cols-1 lg:grid-cols-[0.95fr,1.25fr]">
@@ -890,6 +1013,17 @@ export default function PlatformConsole() {
                         min={Math.max(1, members.length)}
                         value={manageSettings.maxUsers}
                         onChange={(event) => setManageSettings((current) => ({ ...current, maxUsers: event.target.value }))}
+                        className="border-white/10 bg-black/20 text-white"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="manageMaxVehicles" className="text-white/70">Limite de veiculos ativos</Label>
+                      <Input
+                        id="manageMaxVehicles"
+                        type="number"
+                        min="1"
+                        value={manageSettings.maxVehicles}
+                        onChange={(event) => setManageSettings((current) => ({ ...current, maxVehicles: event.target.value }))}
                         className="border-white/10 bg-black/20 text-white"
                       />
                     </div>
@@ -1282,7 +1416,7 @@ export default function PlatformConsole() {
                 <CardHeader>
                   <CardTitle className="text-lg">Usuarios da loja</CardTitle>
                   <CardDescription className="text-white/45">
-                    {selectedStore ? `${members.length}/${selectedStore.max_users} ocupados no limite atual.` : "Acompanhe os acessos."}
+                    {selectedStore ? `${members.length}/${selectedStore.max_users} usuarios e ${selectedStore.vehicles_count}/${selectedStore.max_vehicles} veiculos no limite atual.` : "Acompanhe os acessos."}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -1292,7 +1426,39 @@ export default function PlatformConsole() {
                       Carregando usuarios...
                     </div>
                   ) : (
-                    <div className="overflow-x-auto">
+                    <div className="space-y-3">
+                    <div className="grid gap-3 md:hidden">
+                      {members.map((member) => (
+                        <div key={member.id} className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                          <div className="font-semibold text-white">{member.nome}</div>
+                          <div className="truncate text-xs text-white/45">{member.email}</div>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <Badge
+                              variant="outline"
+                              className={
+                                member.papel === "owner"
+                                  ? "border-blue-500/20 bg-blue-500/10 text-blue-300"
+                                  : "border-white/10 bg-white/5 text-white/70"
+                              }
+                            >
+                              {memberRoleLabel(member.papel)}
+                            </Badge>
+                            <Badge
+                              variant="outline"
+                              className={
+                                member.ativo
+                                  ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-300"
+                                  : "border-red-500/20 bg-red-500/10 text-red-300"
+                              }
+                            >
+                              {member.ativo ? "Ativo" : "Inativo"}
+                            </Badge>
+                          </div>
+                          <div className="mt-3 text-sm text-white/70">Meta mensal: {member.meta_mensal ?? 0}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="hidden overflow-x-auto md:block">
                     <Table>
                       <TableHeader>
                         <TableRow className="border-white/10 hover:bg-transparent">
@@ -1338,6 +1504,7 @@ export default function PlatformConsole() {
                         ))}
                       </TableBody>
                     </Table>
+                    </div>
                     </div>
                   )}
                 </CardContent>

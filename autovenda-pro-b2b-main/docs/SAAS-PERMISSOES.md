@@ -12,6 +12,8 @@
 - Todo dado operacional pertence a uma loja.
 - Toda acao sensivel e validada no backend.
 - O frontend pode esconder botoes, mas a permissao real vem da API.
+- O fluxo padrao de onboarding e a propria loja se cadastrar e entrar como `owner`.
+- A montagem da equipe acontece depois, por convite ou criacao interna controlada pelo `owner`.
 
 ## Matriz resumida
 
@@ -44,9 +46,10 @@
 
 ### Owner
 
-- cria a conta inicial da loja ou recebe acesso da plataforma
+- cria a conta inicial da loja por auto-cadastro ou recebe acesso da plataforma
 - cai no app da propria loja
 - pode convidar vendedores por link
+- pode montar a equipe da loja sem depender do admin da plataforma
 
 ### Seller
 
@@ -84,6 +87,11 @@ O platform admin deve sempre conseguir:
 - estender trial
 - redefinir senha de owner
 - ver ultima atividade relevante
+
+Mas esse painel nao deve substituir o onboarding principal do produto:
+
+- a entrada padrao e o auto-cadastro da loja
+- o platform admin atua como suporte interno e operacao
 
 ## Escopo minimo de auditoria
 

@@ -1,6 +1,4 @@
 import {
-  Area,
-  AreaChart,
   Bar,
   BarChart,
   CartesianGrid,
@@ -12,27 +10,30 @@ import {
   YAxis,
 } from "recharts";
 
-type ChartMode = "lucro" | "carros";
+type ChartMode = "leads" | "carros";
 
 interface ChartPoint {
   mes: string;
-  lucro: number;
-  qtd: number;
+  carros: number;
+  leads: number;
 }
 
 interface RankingEntry {
   id: string;
   qtd: number;
-  valor: number;
+  leadsAtendidos: number;
   nome: string;
   meta: number;
 }
 
 interface DashboardChartsProps {
   carros: number;
+  leadsAtendidos: number;
   chart6m: ChartPoint[];
   chartMode: ChartMode;
+  metaLeadsTotal: number;
   metaTotal: number;
+  progMetaLeads: number;
   nomesMes: string[];
   progMeta: number;
   ranking: RankingEntry[];
@@ -42,9 +43,12 @@ interface DashboardChartsProps {
 
 export default function DashboardCharts({
   carros,
+  leadsAtendidos,
   chart6m,
   chartMode,
+  metaLeadsTotal,
   metaTotal,
+  progMetaLeads,
   nomesMes,
   progMeta,
   ranking,
@@ -62,69 +66,96 @@ export default function DashboardCharts({
   const topLabels = ["TOP 1", "TOP 2", "TOP 3"];
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-12 gap-3 sm:gap-5">
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 sm:gap-5">
       <div className="col-span-1 lg:col-span-4 rounded-2xl bg-[hsl(230,18%,11%)] border border-white/5 p-3 sm:p-6 lg:p-7 animate-fade-up relative overflow-hidden">
         <div className="absolute -bottom-20 -left-20 w-40 h-40 rounded-full bg-blue-500/10 blur-[80px]" />
 
         <div className="relative z-10">
           <div className="flex items-center justify-between gap-2 mb-3 sm:mb-6">
             <div>
-              <p className="text-white font-bold text-xs sm:text-base">Meta de Vendas</p>
-              <p className="text-white/35 text-[10px] sm:text-xs mt-0.5 sm:mt-1 hidden sm:block">{"Desempenho do m\u00eas atual"}</p>
+              <p className="text-white font-bold text-xs sm:text-base">Metas do Mês</p>
+              <p className="text-white/35 text-[10px] sm:text-xs mt-0.5 sm:mt-1 hidden sm:block">Ritmo operacional de leads e carros vendidos</p>
             </div>
             <div className="rounded-full border border-blue-500/15 bg-blue-500/10 px-2 sm:px-3 py-0.5 sm:py-1 text-[9px] sm:text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-300">
               Meta
             </div>
           </div>
 
-          <div className="flex justify-center mb-3 sm:mb-5">
-            <div className="relative w-[110px] h-[110px] sm:w-[190px] sm:h-[190px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <RadialBarChart
-                  cx="50%"
-                  cy="50%"
-                  innerRadius="65%"
-                  outerRadius="90%"
-                  barSize={12}
-                  data={gaugeData}
-                  startAngle={90}
-                  endAngle={-270}
-                >
-                  <RadialBar background={{ fill: "rgba(255,255,255,0.05)" }} dataKey="value" cornerRadius={10} />
-                </RadialBarChart>
-              </ResponsiveContainer>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <p className="text-2xl sm:text-4xl font-black text-white tabular-nums">{carros}</p>
-                <p className="text-white/35 text-[10px] sm:text-sm font-semibold mt-0.5 sm:mt-1">de {metaTotal}</p>
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-4 sm:mb-6">
+            <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-3 sm:p-4">
+              <div className="flex justify-center mb-2 sm:mb-3">
+                <div className="relative w-[88px] h-[88px] sm:w-[132px] sm:h-[132px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <RadialBarChart
+                      cx="50%"
+                      cy="50%"
+                      innerRadius="65%"
+                      outerRadius="90%"
+                      barSize={10}
+                      data={gaugeData}
+                      startAngle={90}
+                      endAngle={-270}
+                    >
+                      <RadialBar background={{ fill: "rgba(255,255,255,0.05)" }} dataKey="value" cornerRadius={10} />
+                    </RadialBarChart>
+                  </ResponsiveContainer>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <p className="text-xl sm:text-3xl font-black text-white tabular-nums">{carros}</p>
+                    <p className="text-white/35 text-[9px] sm:text-xs font-semibold mt-0.5">de {metaTotal}</p>
+                  </div>
+                </div>
               </div>
+              <p className="text-center text-[10px] sm:text-xs font-bold uppercase tracking-[0.18em] text-white/55">Carros vendidos</p>
+              <p className="mt-2 text-center text-[10px] sm:text-sm font-bold">
+                {metaTotal - carros > 0 ? (
+                  <span className="text-blue-400">
+                    Faltam {metaTotal - carros}
+                  </span>
+                ) : (
+                  <span className="text-emerald-400">Meta batida</span>
+                )}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-3 sm:p-4">
+              <div className="mb-2">
+                <p className="text-[10px] sm:text-xs font-bold uppercase tracking-[0.18em] text-white/55">Leads atendidos</p>
+                <p className="mt-1 text-2xl sm:text-3xl font-black text-white tabular-nums">{leadsAtendidos}</p>
+                <p className="text-white/35 text-[9px] sm:text-xs font-semibold">de {metaLeadsTotal}</p>
+              </div>
+              <div className="w-full h-2 sm:h-2.5 bg-white/5 rounded-full overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all duration-1000 ease-out"
+                  style={{
+                    width: `${Math.max(Math.min(progMetaLeads, 100), metaLeadsTotal > 0 ? 3 : 0)}%`,
+                    background: progMetaLeads >= 100
+                      ? "linear-gradient(90deg, #10b981, #34d399)"
+                      : "linear-gradient(90deg, #f59e0b, #fb7185)",
+                  }}
+                />
+              </div>
+              <p className="mt-2 text-[10px] sm:text-sm font-bold">
+                {metaLeadsTotal - leadsAtendidos > 0 ? (
+                  <span className="text-amber-400">
+                    Faltam {metaLeadsTotal - leadsAtendidos} leads
+                  </span>
+                ) : (
+                  <span className="text-emerald-400">Meta batida</span>
+                )}
+              </p>
             </div>
           </div>
 
-          <div className="space-y-2 sm:space-y-3">
-            <div className="flex justify-between items-center text-[10px] sm:text-sm">
-              <span className="text-white/50">Progresso {nomesMes[mes]}</span>
-              <span className="text-white font-bold">{progMeta.toFixed(0)}%</span>
+          <div className="mt-4 grid grid-cols-2 gap-3 text-[10px] sm:text-sm">
+            <div className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2.5">
+              <div className="text-white/45">Progresso {nomesMes[mes]}</div>
+              <div className="mt-1 text-lg sm:text-xl font-black text-white">{progMeta.toFixed(0)}%</div>
+              <div className="text-white/35">Meta de carros</div>
             </div>
-            <div className="w-full h-2 sm:h-3 bg-white/5 rounded-full overflow-hidden">
-              <div
-                className="h-full rounded-full transition-all duration-1000 ease-out"
-                style={{
-                  width: `${Math.max(progMeta, 3)}%`,
-                  background: progMeta >= 100
-                    ? "linear-gradient(90deg, #10b981, #34d399)"
-                    : "linear-gradient(90deg, #3b82f6, #8b5cf6)",
-                }}
-              />
+            <div className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2.5">
+              <div className="text-white/45">Ritmo comercial</div>
+              <div className="mt-1 text-lg sm:text-xl font-black text-white">{progMetaLeads.toFixed(0)}%</div>
+              <div className="text-white/35">Meta de leads</div>
             </div>
-            <p className="text-[10px] sm:text-sm font-bold text-center mt-2 sm:mt-4">
-              {metaTotal - carros > 0 ? (
-                <span className="text-blue-400">
-                  Faltam <span className="text-sm sm:text-lg font-black">{metaTotal - carros}</span> carro{metaTotal - carros > 1 ? "s" : ""}
-                </span>
-              ) : (
-                <span className="text-emerald-400">Meta batida!</span>
-              )}
-            </p>
           </div>
 
           <div className="mt-3 sm:mt-6 pt-3 sm:pt-5 border-t border-white/5 space-y-2 sm:space-y-3">
@@ -160,19 +191,19 @@ export default function DashboardCharts({
         <div className="relative z-10">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4 mb-3 sm:mb-6">
             <div>
-              <p className="text-white font-bold text-xs sm:text-base">{"Evolu\u00e7\u00e3o de Vendas"}</p>
-              <p className="text-white/35 text-[10px] sm:text-sm mt-0.5 sm:mt-1 hidden sm:block">{"\u00daltimos 6 meses"}</p>
+              <p className="text-white font-bold text-xs sm:text-base">Evolução operacional</p>
+              <p className="text-white/35 text-[10px] sm:text-sm mt-0.5 sm:mt-1 hidden sm:block">Últimos 6 meses</p>
             </div>
             <div className="flex bg-white/5 rounded-lg sm:rounded-xl p-0.5 sm:p-1 self-start sm:self-auto">
               <button
-                onClick={() => setChartMode("lucro")}
+                onClick={() => setChartMode("leads")}
                 className={`px-2 sm:px-4 py-1 sm:py-2 rounded-md sm:rounded-lg text-[9px] sm:text-xs font-bold transition-all ${
-                  chartMode === "lucro"
+                  chartMode === "leads"
                     ? "bg-blue-500/20 text-blue-400"
                     : "text-white/35 hover:text-white/60"
                 }`}
               >
-                Lucro
+                Leads
               </button>
               <button
                 onClick={() => setChartMode("carros")}
@@ -189,26 +220,17 @@ export default function DashboardCharts({
 
           <div className="h-40 sm:h-72 lg:h-[340px]">
             <ResponsiveContainer width="100%" height="100%">
-              {chartMode === "lucro" ? (
-                <AreaChart data={chart6m}>
+              {chartMode === "leads" ? (
+                <BarChart data={chart6m}>
                   <defs>
-                    <linearGradient id="gFat2" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#8b5cf6" stopOpacity={0.35} />
-                      <stop offset="100%" stopColor="#3b82f6" stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="strokeG2" x1="0" y1="0" x2="1" y2="0">
-                      <stop offset="0%" stopColor="#3b82f6" />
-                      <stop offset="100%" stopColor="#d946ef" />
+                    <linearGradient id="gLeads" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#f59e0b" />
+                      <stop offset="100%" stopColor="#fb7185" />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" />
                   <XAxis dataKey="mes" tick={{ fontSize: 12, fill: "rgba(255,255,255,0.35)" }} axisLine={false} tickLine={false} />
-                  <YAxis
-                    tick={{ fontSize: 11, fill: "rgba(255,255,255,0.24)" }}
-                    axisLine={false}
-                    tickLine={false}
-                    tickFormatter={(v) => v > 0 ? `${(v / 1000).toFixed(0)}k` : "0"}
-                  />
+                  <YAxis tick={{ fontSize: 11, fill: "rgba(255,255,255,0.24)" }} axisLine={false} tickLine={false} allowDecimals={false} />
                   <Tooltip
                     contentStyle={{
                       backgroundColor: "#1a1d2e",
@@ -218,19 +240,11 @@ export default function DashboardCharts({
                       color: "#fff",
                       boxShadow: "0 24px 64px rgba(0,0,0,0.5)",
                     }}
-                    formatter={(val: number) => [`R$ ${val.toLocaleString("pt-BR")}`, "Lucro Bruto"]}
+                    formatter={(val: number) => [`${val} leads`, "Atendidos"]}
                     labelStyle={{ color: "rgba(255,255,255,0.45)" }}
                   />
-                  <Area
-                    type="monotone"
-                    dataKey="lucro"
-                    stroke="url(#strokeG2)"
-                    strokeWidth={3}
-                    fill="url(#gFat2)"
-                    dot={{ r: 5, fill: "#8b5cf6", stroke: "#1a1d2e", strokeWidth: 3 }}
-                    activeDot={{ r: 8, fill: "#a78bfa", stroke: "#fff", strokeWidth: 2 }}
-                  />
-                </AreaChart>
+                  <Bar dataKey="leads" fill="url(#gLeads)" radius={[8, 8, 0, 0]} maxBarSize={48} />
+                </BarChart>
               ) : (
                 <BarChart data={chart6m}>
                   <defs>
@@ -254,7 +268,7 @@ export default function DashboardCharts({
                     formatter={(val: number) => [`${val} carros`, "Vendidos"]}
                     labelStyle={{ color: "rgba(255,255,255,0.45)" }}
                   />
-                  <Bar dataKey="qtd" fill="url(#gBar)" radius={[8, 8, 0, 0]} maxBarSize={48} />
+                  <Bar dataKey="carros" fill="url(#gBar)" radius={[8, 8, 0, 0]} maxBarSize={48} />
                 </BarChart>
               )}
             </ResponsiveContainer>

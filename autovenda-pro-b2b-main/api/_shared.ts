@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { handleBackendRequest } from "../server/backend";
+import { createRequestId } from "../server/observability";
 
 async function readBody(req: IncomingMessage) {
   return new Promise<unknown>((resolve, reject) => {
@@ -28,6 +29,7 @@ export async function runBackendHandler(
   res: ServerResponse,
   fallbackPath: string,
 ) {
+  const requestId = createRequestId();
   const requestUrl = req.url ? new URL(req.url, "http://localhost") : null;
   const path = requestUrl ? `${requestUrl.pathname}${requestUrl.search}` : fallbackPath;
 
@@ -37,6 +39,7 @@ export async function runBackendHandler(
     headers: req.headers as Record<string, string | string[] | undefined>,
     body: await readBody(req),
     ip: req.socket.remoteAddress ?? "vercel",
+    requestId,
   });
 
   res.statusCode = response.status;

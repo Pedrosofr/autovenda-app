@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AlertCircle, Car, CheckCircle2, FileText, Receipt, Search } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
@@ -33,11 +33,13 @@ function nfeBadge(status?: "pendente" | "autorizada" | "cancelada" | "erro") {
 }
 
 export default function Vendas() {
+  const ROWS_PAGE_SIZE = 40;
   const { tenant, user } = useAuth();
   const { vendas, veiculos, vendedores, tarefasPosVenda, custos, refreshRemoteState } = useAppStore();
   const [search, setSearch] = useState("");
   const [selectedVendaId, setSelectedVendaId] = useState<string | null>(null);
   const [detalhesVendaId, setDetalhesVendaId] = useState<string | null>(null);
+  const [visibleRowsCount, setVisibleRowsCount] = useState(ROWS_PAGE_SIZE);
   const nfeEnabled = tenant?.nfeEnabled ?? false;
   const nfeConfigured = tenant?.nfeConfigured ?? false;
   const canEmitNfe = nfeEnabled && nfeConfigured;
@@ -79,6 +81,15 @@ export default function Vendas() {
       return haystack.includes(normalized);
     });
   }, [rows, search]);
+
+  useEffect(() => {
+    setVisibleRowsCount(ROWS_PAGE_SIZE);
+  }, [search]);
+
+  const displayedRows = useMemo(
+    () => filteredRows.slice(0, visibleRowsCount),
+    [filteredRows, visibleRowsCount],
+  );
 
   const totals = useMemo(() => {
     const pendencias = rows.reduce((sum, row) => sum + row.pendencias, 0);
@@ -185,7 +196,7 @@ export default function Vendas() {
         </Card>
       ) : (
         <div className="grid gap-4">
-          {filteredRows.map((row) => (
+          {displayedRows.map((row) => (
             <Card
               key={row.venda.id}
               className="border-white/10 bg-white/[0.03] text-white cursor-pointer hover:bg-white/[0.05] transition-colors"
@@ -259,6 +270,17 @@ export default function Vendas() {
               </CardContent>
             </Card>
           ))}
+          {filteredRows.length > visibleRowsCount ? (
+            <div className="flex justify-center">
+              <Button
+                variant="outline"
+                className="border-white/15 bg-white/[0.03] text-white hover:bg-white/10"
+                onClick={() => setVisibleRowsCount((current) => current + ROWS_PAGE_SIZE)}
+              >
+                Carregar mais vendas
+              </Button>
+            </div>
+          ) : null}
         </div>
       )}
 

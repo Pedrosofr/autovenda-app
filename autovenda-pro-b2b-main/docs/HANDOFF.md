@@ -12,6 +12,7 @@ Prompt recomendado:
 - Stack principal: React 18 + TypeScript + Vite + Tailwind + shadcn/ui.
 - Estrutura atual: SPA com backend local simples, autenticacao, isolamento por loja e base SaaS enxuta.
 - Regra atual de UX: sempre revisar interface pensando primeiro em mobile.
+- Regra atual de produto: o fluxo principal e a propria loja se cadastrar como `owner`, entrar no trial e depois montar a equipe por convite.
 
 ## Estado atual confirmado
 
@@ -52,6 +53,8 @@ Prompt recomendado:
 - Separacao entre painel da plataforma e painel da loja
 - Trial/status por loja
 - Controle de usuarios por loja
+- Auto-cadastro da loja pelo login com criacao do `owner`
+- Fluxo de convite para cada membro criar a propria senha
 - Login/logout e troca de sessao mais claros
 - Estoque sem carros demo automaticos
 - Consulta FIPE manual funcionando
@@ -61,19 +64,18 @@ Prompt recomendado:
 
 ## Ajustes recentes importantes
 
-- `Equipe` foi removida da navegacao lateral
-- `Creditos` foi removida da navegacao lateral
-- `Creditos` continua acessivel pelo botao verde do dashboard
-- Na tela de creditos, clicar em `PIX` ou `cartao` nao adiciona mais saldo direto
-- Agora existe estado de `pagamento pendente` e o saldo entra so ao confirmar manualmente
-- Esse fluxo de credito ainda e simulado, sem gateway real
+- `Equipe` continua owner-only
+- `Creditos` continua owner-only e acessivel pelo dashboard
+- `seller` nao acessa mais vendas, consultas, custos, equipe, financeiro e NF-e
+- Dashboard agora prioriza meta de carros vendidos e leads atendidos
+- O fluxo principal segue sendo: loja se cadastra sozinha, owner entra e depois convida a equipe
 
 ## O que NAO esta pronto
 
-- Pagamento real por PIX/cartao
-- Webhook de aprovacao de pagamento
 - Consulta de placa confiavel em producao
+- Processo de backup/restore validado em operacao real
 - Persistencia totalmente desacoplada do estado agregado atual
+- Revisao completa de textos quebrados/encoding em todas as telas e docs
 
 ## Regras de trabalho para chats novos
 
@@ -81,6 +83,7 @@ Prompt recomendado:
 - Evitar agentes, usar apenas quando houver ganho claro
 - Preferir mudancas pequenas e validacoes objetivas
 - Sempre considerar mobile antes de desktop em ajustes visuais
+- Nao tratar o painel `/platform` como fluxo principal de onboarding; ele e painel interno de operacao
 - Nao assumir memoria completa da thread anterior; usar este handoff como base
 
 ## Arquivos-chave
@@ -124,7 +127,8 @@ Pendencias/riscos:
 
 ## Pendencias e riscos atuais
 
-- Fluxo de credito e apenas simulado; sem gateway, `Confirmar pagamento` funciona como aprovacao manual
 - Consulta por placa continua dependente de provedor externo instavel
 - Ainda ha pontos de texto/encoding para limpar em telas menos revisitadas
+- Backup e restore ainda precisam de validacao operacional real
 - A arquitetura SaaS base existe, mas ainda pode evoluir para persistencia mais granular por dominio
+- O cadastro voluntario da loja ja existe, mas essa diretriz ainda precisa ser preservada em futuras decisoes de produto e onboarding

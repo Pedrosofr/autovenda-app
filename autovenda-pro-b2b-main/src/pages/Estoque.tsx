@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useDeferredValue } from "react";
 import { Link } from "react-router-dom";
@@ -24,7 +24,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Copy,
-  Download,
   Eye,
   ExternalLink,
   ImagePlus,
@@ -33,23 +32,23 @@ import {
   RotateCcw,
   Search,
   Share2,
-  Sparkles,
   Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { FileText } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useAppStore } from "@/store/appStore";
-import type { AjustesFoto, Veiculo, Venda } from "@/store/types";
-import { analyzeVehicleWithGemini as analyzeVehicleWithClaude, generateVehicleDescriptionsWithGemini as generateVehicleDescriptions, type AIVehicleResult } from "@/services/gemini";
+import type { Veiculo, Venda } from "@/store/types";
+import { generateVehicleDescriptions } from "@/services/gemini";
+import type { AIVehicleResult } from "@/services/gemini";
 import { NFeEmitirDialog } from "@/components/NFeEmitirDialog";
 
 type EstoqueViewMode = "ativos" | "arquivados" | "lixeira";
-type CompareMode = "comparar" | "original" | "tratada";
 type ShareChannel = "whatsapp" | "marketplace" | "olx";
 
 interface VehicleDraft {
   modelo: string;
+  placa: string;
   ano: string;
   km: string;
   cor: string;
@@ -61,7 +60,6 @@ interface VehicleDraft {
   fotos: string[];
   fotoCapaIndex: number;
   fotosDestaque: number[];
-  ajustesFoto: AjustesFoto;
   tituloAnuncio: string;
   descricaoOlx: string;
   descricaoMarketplace: string;
@@ -74,11 +72,10 @@ const statusConfig = {
   vendido: { label: "Vendido", dot: "bg-sky-400", bg: "bg-sky-500/10 text-sky-300 border-sky-500/20" },
 };
 
-const defaultAjustes: AjustesFoto = { brilho: 106, contraste: 105, saturacao: 104, calor: 2 };
-
 function createEmptyDraft(): VehicleDraft {
   return {
     modelo: "",
+    placa: "",
     ano: "",
     km: "",
     cor: "",
@@ -90,16 +87,11 @@ function createEmptyDraft(): VehicleDraft {
     fotos: [],
     fotoCapaIndex: 0,
     fotosDestaque: [],
-    ajustesFoto: { ...defaultAjustes },
     tituloAnuncio: "",
     descricaoOlx: "",
     descricaoMarketplace: "",
     descricaoWhatsapp: "",
   };
-}
-
-function filtersFromAjustes(ajustes: AjustesFoto) {
-  return `brightness(${ajustes.brilho}%) contrast(${ajustes.contraste}%) saturate(${ajustes.saturacao}%) sepia(${Math.max(0, ajustes.calor)}%)`;
 }
 
 function normalizeCoverIndex(index: number, length: number) {
@@ -406,37 +398,6 @@ function fallbackWhatsApp(modelo: string, ano: string, valor: string, extras?: P
   return buildFallbackCopy(modelo, ano, valor, extras, tel).whatsapp;
 }
 
-async function createImageFromSource(src: string) {
-  return new Promise<HTMLImageElement>((resolve, reject) => {
-    const image = new Image();
-    image.onload = () => resolve(image);
-    image.onerror = () => reject(new Error("Nao foi possivel preparar a imagem para compartilhamento."));
-    image.src = src;
-  });
-}
-
-async function buildProcessedPhotoFile(src: string, ajustes: AjustesFoto, filename: string) {
-  const image = await createImageFromSource(src);
-  const canvas = document.createElement("canvas");
-  canvas.width = image.naturalWidth || image.width;
-  canvas.height = image.naturalHeight || image.height;
-
-  const context = canvas.getContext("2d");
-  if (!context) {
-    throw new Error("Nao foi possivel preparar o pack de imagens.");
-  }
-
-  context.filter = filtersFromAjustes(ajustes);
-  context.drawImage(image, 0, 0, canvas.width, canvas.height);
-
-  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.92));
-  if (!blob) {
-    throw new Error("Nao foi possivel gerar a versao tratada da foto.");
-  }
-
-  return new File([blob], filename, { type: "image/jpeg" });
-}
-
 async function writeTextSafe(text: string) {
   if (window.isSecureContext && navigator.clipboard?.writeText) {
     await navigator.clipboard.writeText(text);
@@ -557,11 +518,11 @@ function MarcarVendido({
 }
 
 export default function Estoque() {
+  const VEHICLES_PAGE_SIZE = 48;
   const {
     veiculos,
     vendas,
     vendedores,
-    memoriaLoja,
     configPrecos,
     addVeiculo,
     updateVeiculo,
@@ -591,8 +552,8 @@ export default function Estoque() {
   const [draft, setDraft] = useState<VehicleDraft>(() => createEmptyDraft());
   const [isGenerating, setIsGenerating] = useState(false);
   const [isPreparingShare, setIsPreparingShare] = useState(false);
-  const [compareMode, setCompareMode] = useState<CompareMode>("comparar");
   const [shareChannel, setShareChannel] = useState<ShareChannel>("whatsapp");
+  const [visibleVehiclesCount, setVisibleVehiclesCount] = useState(VEHICLES_PAGE_SIZE);
 
   const marcarComoReservado = useCallback((veiculo: Veiculo) => {
     updateVeiculo(veiculo.id, { status: "reservado" });
@@ -632,6 +593,15 @@ export default function Estoque() {
     });
   }, [veiculos, viewMode, normalizedSearch, filterStatus]);
 
+  useEffect(() => {
+    setVisibleVehiclesCount(VEHICLES_PAGE_SIZE);
+  }, [viewMode, filterStatus, normalizedSearch]);
+
+  const displayedVeiculos = useMemo(
+    () => visibleVeiculos.slice(0, visibleVehiclesCount),
+    [visibleVeiculos, visibleVehiclesCount],
+  );
+
   const totalDisponivel = visibleVeiculos.filter((v) => v.status === "disponivel").length;
   const totalReservado = visibleVeiculos.filter((v) => v.status === "reservado").length;
   const totalVendido = visibleVeiculos.filter((v) => v.status === "vendido").length;
@@ -639,7 +609,6 @@ export default function Estoque() {
 
   const resetDraft = useCallback(() => {
     setDraft(createEmptyDraft());
-    setCompareMode("comparar");
     setDraftPhotoIdx(0);
   }, []);
 
@@ -682,11 +651,7 @@ export default function Estoque() {
     multimidia: draft.multimidia,
   } as const;
 
-  const generateWithAI = async () => {
-    if (!draft.modelo.trim() || draft.fotos.length === 0) {
-      toast.error("Adicione fotos e o nome do veiculo antes de gerar");
-      return;
-    }
+  /* AI generation removed for the lean stock flow.
 
     setIsGenerating(true);
     try {
@@ -705,6 +670,7 @@ export default function Estoque() {
 
       const vehiclePayload = {
         modelo: draft.modelo,
+        placa: draft.placa || undefined,
         ano: draft.ano || undefined,
         km: draft.km || undefined,
         cor: draft.cor || undefined,
@@ -720,17 +686,11 @@ export default function Estoque() {
         contextoLoja,
       };
 
-      const [result, descriptions] = await Promise.all([
-        analyzeVehicleWithClaude(draft.fotos, vehiclePayload),
-        generateVehicleDescriptions(draft.fotos, {
-          ...vehiclePayload,
-          valorVenda: draft.valorVenda || undefined,
-          telefone: configPrecos.telefoneLoja || undefined,
-        }).catch(() => null),
-      ]);
-
-      const orderedPhotoIndices = buildPhotoPriorityOrder(draft.fotos.length, result.fotosSugeridas ?? []);
-      const coverIndex = normalizeCoverIndex(orderedPhotoIndices[0] ?? 0, draft.fotos.length);
+      const descriptions = await generateVehicleDescriptions(draft.fotos, {
+        ...vehiclePayload,
+        valorVenda: draft.valorVenda || undefined,
+        telefone: configPrecos.telefoneLoja || undefined,
+      }).catch(() => null);
 
       // Usa descrições diretas da IA quando disponíveis (formato marketplace real)
       // Fallback para buildVehicleTexts caso a segunda etapa falhe
@@ -744,7 +704,7 @@ export default function Estoque() {
           multimidia: draft.multimidia,
           valorVenda: draft.valorVenda,
         },
-        result,
+        undefined,
         configPrecos.telefoneLoja
       );
 
@@ -753,17 +713,73 @@ export default function Estoque() {
         descricaoOlx: descriptions?.descricaoOlx || fallbackTemplates.olx,
         descricaoMarketplace: descriptions?.descricaoMarketplace || fallbackTemplates.marketplace,
         descricaoWhatsapp: descriptions?.descricaoWhatsapp || fallbackTemplates.whatsapp,
-        fotoCapaIndex: coverIndex,
-        fotosDestaque: orderedPhotoIndices.filter((index) => index !== coverIndex).slice(0, 4),
       });
-      setDraftPhotoIdx(coverIndex);
       toast.success("Descricao completa gerada");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Erro ao gerar conteudo");
     } finally {
       setIsGenerating(false);
     }
-  };
+  */
+
+  const handleGenerateDescription = useCallback(async () => {
+    if (!draft.modelo.trim() || draft.fotos.length === 0) {
+      toast.error("Informe ao menos modelo e fotos para gerar a descricao.");
+      return;
+    }
+
+    setIsGenerating(true);
+    try {
+      const vehiclePayload = {
+        modelo: draft.modelo,
+        placa: draft.placa || undefined,
+        ano: draft.ano || undefined,
+        km: draft.km || undefined,
+        cor: draft.cor || undefined,
+        cambio: draft.cambio || undefined,
+        multimidia: draft.multimidia || undefined,
+        opcionais: [
+          draft.cambio ? `Cambio: ${draft.cambio}` : "",
+          draft.multimidia === "sim" ? "Multimidia: sim" : "",
+          draft.multimidia === "nao" ? "Multimidia: nao" : "",
+        ]
+          .filter(Boolean)
+          .join(" | ") || undefined,
+      };
+
+      const descriptions = await generateVehicleDescriptions(draft.fotos, {
+        ...vehiclePayload,
+        valorVenda: draft.valorVenda || undefined,
+        telefone: configPrecos.telefoneLoja || undefined,
+      });
+
+      const fallbackTemplates = buildVehicleTexts(
+        {
+          modelo: draft.modelo,
+          ano: draft.ano,
+          km: draft.km,
+          cor: draft.cor,
+          cambio: draft.cambio,
+          multimidia: draft.multimidia,
+          valorVenda: draft.valorVenda,
+        },
+        undefined,
+        configPrecos.telefoneLoja
+      );
+
+      patchDraft({
+        tituloAnuncio: descriptions.titulo || fallbackTemplates.titulo,
+        descricaoOlx: descriptions.descricaoOlx || fallbackTemplates.olx,
+        descricaoMarketplace: descriptions.descricaoMarketplace || fallbackTemplates.marketplace,
+        descricaoWhatsapp: descriptions.descricaoWhatsapp || fallbackTemplates.whatsapp,
+      });
+      toast.success("Descricao completa gerada");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Erro ao gerar conteudo");
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [configPrecos.telefoneLoja, draft, patchDraft]);
 
   const saveDraft = () => {
     if (!draft.modelo.trim() || draft.fotos.length === 0) {
@@ -796,6 +812,7 @@ export default function Estoque() {
         .filter((index) => index !== draft.fotoCapaIndex)
         .slice(0, 4),
       modelo: draft.modelo.trim(),
+      placa: draft.placa || undefined,
       ano: draft.ano,
       km: draft.km || undefined,
       cor: draft.cor || undefined,
@@ -812,7 +829,6 @@ export default function Estoque() {
       descricaoWhatsapp: descricaoWhatsappFinal,
       hashtags: [],
       fotoCapaIndex: draft.fotoCapaIndex,
-      ajustesFoto: draft.ajustesFoto,
     });
 
     registrarAprendizadoLoja({
@@ -854,6 +870,13 @@ export default function Estoque() {
     draft.descricaoMarketplace ||
     draft.descricaoWhatsapp ||
     "";
+  const filledCount = [
+    draft.fotos.length > 0,
+    Boolean(draft.modelo.trim()),
+    Boolean(draft.valorVenda.trim()),
+    Boolean(draftDescricao.trim()),
+  ].filter(Boolean).length;
+  const canSaveDraft = Boolean(draft.modelo.trim()) && draft.fotos.length > 0;
 
   const getShareText = (veiculo: {
     modelo: string;
@@ -875,44 +898,10 @@ export default function Estoque() {
     return `${titulo}\n\n${descricaoBase}`;
   };
 
-  const getPackFiles = async (veiculo: Veiculo) => {
-    const publication = getPublicationPhotoIndices(veiculo);
-    const publicationPhotos = [
-      { foto: veiculo.fotos[publication.capa], role: "capa" },
-      { foto: veiculo.fotos[publication.destaque], role: "destaque" },
-    ].filter((item, index, arr) => Boolean(item.foto) && arr.findIndex((other) => other.foto === item.foto) === index);
-
-    return Promise.all(
-      publicationPhotos.map(({ foto, role }, index) =>
-        buildProcessedPhotoFile(
-          foto,
-          veiculo.ajustesFoto ?? defaultAjustes,
-          `${String(index + 1).padStart(2, "0")}-${veiculo.modelo.toLowerCase().replace(/[^a-z0-9]+/gi, "-") || "veiculo"}-${role}.jpg`
-        )
-      )
-    );
-  };
-
   const getChannelActionLabel = (channel: ShareChannel) => {
     if (channel === "marketplace") return "Abrir Marketplace";
     if (channel === "whatsapp") return "Abrir WhatsApp";
     return "Preparar anuncio";
-  };
-
-  const downloadPack = async (veiculo: Veiculo) => {
-    const files = await getPackFiles(veiculo);
-    files.forEach((file, index) => {
-      setTimeout(() => {
-        const url = URL.createObjectURL(file);
-        const link = document.createElement("a");
-        document.body.appendChild(link);
-        link.href = url;
-        link.download = file.name;
-        link.click();
-        link.remove();
-        setTimeout(() => URL.revokeObjectURL(url), 1500);
-      }, index * 220);
-    });
   };
 
   const handleChannelAction = async (veiculo: Veiculo, channel: ShareChannel) => {
@@ -1003,7 +992,7 @@ export default function Estoque() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-3">
-        {visibleVeiculos.map((veiculo) => {
+        {displayedVeiculos.map((veiculo) => {
           const st = statusConfig[veiculo.status];
           const coverIndex = normalizeCoverIndex(veiculo.fotoCapaIndex ?? 0, veiculo.fotos.length);
           const hasCoverPhoto = veiculo.fotos.length > 0 && Boolean(veiculo.fotos[coverIndex]);
@@ -1022,7 +1011,6 @@ export default function Estoque() {
                     src={veiculo.fotos[coverIndex]}
                     alt={veiculo.modelo}
                     className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-300"
-                    style={{ filter: filtersFromAjustes(veiculo.ajustesFoto ?? defaultAjustes) }}
                   />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-white/30 bg-[hsl(230,18%,9%)]">
@@ -1141,6 +1129,17 @@ export default function Estoque() {
           </div>
         )}
       </div>
+      {visibleVeiculos.length > visibleVehiclesCount && (
+        <div className="flex justify-center">
+          <Button
+            variant="outline"
+            className="border-white/15 bg-white/[0.03] text-white hover:bg-white/10"
+            onClick={() => setVisibleVehiclesCount((current) => current + VEHICLES_PAGE_SIZE)}
+          >
+            Carregar mais veiculos
+          </Button>
+        </div>
+      )}
 
       <Dialog open={showNew} onOpenChange={(open) => { if (!open) resetDraft(); setShowNew(open); }}>
         <DialogContent className="w-[calc(100vw-1rem)] sm:w-[calc(100vw-1.5rem)] max-w-4xl max-h-[92dvh] overflow-y-auto bg-[hsl(230,18%,11%)] border-white/10 p-3 sm:p-6">
@@ -1148,12 +1147,36 @@ export default function Estoque() {
             <DialogTitle className="text-xl text-white">Novo veiculo</DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-3 sm:space-y-5">
+          <div className="space-y-4 sm:space-y-5">
+              <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-sky-300/90">Cadastro rapido</p>
+                    <h3 className="mt-1 text-xl font-black tracking-[-0.03em] text-white sm:text-2xl">
+                      Suba o veiculo com
+                      {" "}
+                      <span className="bg-gradient-to-r from-sky-300 via-cyan-300 to-emerald-300 bg-clip-text text-transparent">
+                        clareza e velocidade
+                      </span>
+                    </h3>
+                    <p className="mt-1 text-sm text-white/45">Fotos, dados principais e texto do anuncio em uma tela so.</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs text-white/70">
+                      {draft.fotos.length} foto(s)
+                    </span>
+                    <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs text-white/70">
+                      {filledCount}/4 itens preenchidos
+                    </span>
+                  </div>
+                </div>
+              </div>
+
               <div className="rounded-2xl border border-white/10 bg-white/5 p-3 sm:p-4">
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-white font-semibold">Fotos</p>
-                    <p className="text-white/35 text-sm">Upload e comparacao entre original e tratada.</p>
+                    <p className="text-white/35 text-sm">Upload direto, preview rapido e capa definida em 1 clique.</p>
                   </div>
                   <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} className="border-white/10 text-white/70">
                     <ImagePlus className="h-4 w-4 mr-2" /> Adicionar
@@ -1164,34 +1187,13 @@ export default function Estoque() {
 
                 {draft.fotos.length > 0 ? (
                   <>
-                    <div className="flex flex-wrap gap-2 mt-3 sm:mt-4">
-                      {(["comparar", "original", "tratada"] as CompareMode[]).map((mode) => (
-                        <button
-                          key={mode}
-                          type="button"
-                          onClick={() => setCompareMode(mode)}
-                          className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
-                            compareMode === mode
-                              ? "bg-blue-500/15 text-blue-300 border border-blue-500/30"
-                              : "bg-white/5 text-white/45 border border-white/10"
-                          }`}
-                        >
-                          {mode === "comparar" ? "Comparar" : mode === "original" ? "Original" : "Tratada"}
-                        </button>
-                      ))}
-                    </div>
-
-                    <div className={`grid gap-3 sm:gap-4 mt-3 sm:mt-4 ${compareMode === "comparar" ? "md:grid-cols-2" : "grid-cols-1"}`}>
-                      {(compareMode === "comparar" ? ["original", "tratada"] : [compareMode]).map((mode) => (
-                        <div key={mode} className="rounded-2xl overflow-hidden border border-white/10 bg-[hsl(230,18%,9%)]">
-                          <div className="aspect-[4/3] sm:aspect-[16/11] relative bg-white/5">
-                            <img src={draftActivePhoto} alt={draft.modelo || "Preview"} className="w-full h-full object-cover" style={{ filter: mode === "tratada" ? filtersFromAjustes(draft.ajustesFoto) : undefined }} />
-                            <div className="absolute left-3 top-3 rounded-full bg-black/60 px-3 py-1 text-xs font-semibold text-white">
-                              {mode === "tratada" ? "Tratada" : "Original"}
-                            </div>
-                          </div>
+                    <div className="mt-3 sm:mt-4 rounded-2xl overflow-hidden border border-white/10 bg-[hsl(230,18%,9%)]">
+                      <div className="aspect-[4/3] sm:aspect-[16/11] relative bg-white/5">
+                        <img src={draftActivePhoto} alt={draft.modelo || "Preview"} className="w-full h-full object-cover" />
+                        <div className="absolute left-3 top-3 rounded-full bg-black/60 px-3 py-1 text-xs font-semibold text-white">
+                          Preview
                         </div>
-                      ))}
+                      </div>
                     </div>
 
                       <div className="flex flex-wrap gap-2 mt-3 sm:mt-4">
@@ -1204,7 +1206,7 @@ export default function Estoque() {
                               draftPhotoIdx === index ? "border-blue-400 ring-2 ring-blue-500/20" : "border-white/10"
                             }`}
                           >
-                            <img src={photo} alt="" className="w-full h-full object-cover" style={{ filter: filtersFromAjustes(draft.ajustesFoto) }} />
+                            <img src={photo} alt="" className="w-full h-full object-cover" />
                             {index === draft.fotoCapaIndex && <span className="absolute bottom-1 left-1 bg-blue-500 text-white text-[8px] font-bold px-1 rounded">CAPA</span>}
                           </button>
                         ))}
@@ -1224,7 +1226,7 @@ export default function Estoque() {
                       )}
                       <div className="mt-3 sm:mt-4 rounded-2xl border border-white/10 bg-[hsl(230,18%,9%)] p-3">
                         <p className="text-xs text-white/45">
-                          Tratamento automatico aplicado: enquadramento visual preservado, com ajuste leve de brilho, contraste, cor e nitidez.
+                          As fotos ficam originais. Defina a capa e siga para a descricao para publicar mais rapido.
                       </p>
                     </div>
                   </>
@@ -1237,11 +1239,17 @@ export default function Estoque() {
               </div>
 
               <div className="rounded-2xl border border-white/10 bg-white/5 p-3 sm:p-4">
-                <p className="text-white font-semibold mb-3">Dados do veiculo</p>
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-white font-semibold">Essencial do veiculo</p>
+                    <p className="text-sm text-white/35">Campos que o lojista realmente precisa para publicar rapido.</p>
+                  </div>
+                </div>
                 <div className="grid gap-3 md:grid-cols-2">
                   <div className="md:col-span-2">
                     <Input value={draft.modelo} onChange={(e) => updateDraft("modelo", e.target.value)} placeholder="Ex: Honda Civic Touring 1.5 Turbo" className="bg-white/5 border-white/10 text-white placeholder:text-white/20" />
                   </div>
+                  <Input value={draft.placa} onChange={(e) => updateDraft("placa", e.target.value.toUpperCase())} placeholder="Placa (opcional)" className="bg-white/5 border-white/10 text-white placeholder:text-white/20 uppercase" />
                   <Input value={draft.ano} onChange={(e) => updateDraft("ano", e.target.value)} placeholder="Ano" className="bg-white/5 border-white/10 text-white placeholder:text-white/20" />
                   <Input value={draft.valorVenda} onChange={(e) => updateDraft("valorVenda", e.target.value)} placeholder="Valor de venda" className="bg-white/5 border-white/10 text-white placeholder:text-white/20" />
                   <Input value={draft.km} onChange={(e) => updateDraft("km", e.target.value)} placeholder="KM" className="bg-white/5 border-white/10 text-white placeholder:text-white/20" />
@@ -1291,10 +1299,20 @@ export default function Estoque() {
 
               <div className="rounded-2xl border border-white/10 bg-white/5 p-3 sm:p-4">
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-white font-semibold">Descricao com IA</p>
-                  <Button variant="outline" size="sm" onClick={generateWithAI} disabled={isGenerating} className="border-purple-500/25 text-purple-300">
-                    {isGenerating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
-                    Gerar
+                  <div>
+                    <p className="text-white font-semibold">Titulo e descricao</p>
+                    <p className="text-sm text-white/35">Gere pela IA ou ajuste manualmente antes de publicar.</p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleGenerateDescription}
+                    disabled={isGenerating || !draft.modelo.trim() || draft.fotos.length === 0}
+                    className="border-white/10 text-white/80 hover:bg-white/5"
+                  >
+                    {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
+                    Gerar com IA
                   </Button>
                 </div>
 
@@ -1314,15 +1332,15 @@ export default function Estoque() {
                         descricaoWhatsapp: e.target.value,
                       });
                     }}
-                    placeholder="Clique em Gerar para a IA montar a descricao completa do veiculo."
+                    placeholder="Descreva o carro, opcionais, estado e condicoes de venda."
                     className="bg-white/5 border-white/10 text-white min-h-[160px] sm:min-h-[220px]"
                   />
                 </div>
               </div>
 
               <div className="flex flex-col sm:flex-row gap-3">
-                <Button onClick={saveDraft} className="flex-1 card-gradient-blue text-white font-bold">
-                  <Sparkles className="h-4 w-4 mr-2" /> Salvar veiculo
+                <Button onClick={saveDraft} disabled={!canSaveDraft} className="flex-1 card-gradient-blue text-white font-bold disabled:opacity-60">
+                  Salvar veiculo
                 </Button>
                 <Button variant="outline" onClick={() => { setShowNew(false); resetDraft(); }} className="border-white/10 text-white/70">
                   Cancelar
@@ -1348,7 +1366,6 @@ export default function Estoque() {
                     src={showDetail.fotos[detailPhotoIdx]}
                     alt={showDetail.modelo}
                     className="max-h-[32dvh] w-full rounded-xl object-contain sm:max-h-[56dvh] lg:max-h-[72dvh]"
-                    style={{ filter: filtersFromAjustes(showDetail.ajustesFoto ?? defaultAjustes) }}
                   />
                 </div>
                 {showDetail.fotos.length > 1 && (
@@ -1376,7 +1393,6 @@ export default function Estoque() {
                           src={foto}
                           alt=""
                           className="h-full w-full object-cover"
-                          style={{ filter: filtersFromAjustes(showDetail.ajustesFoto ?? defaultAjustes) }}
                         />
                         {index === coverIndex && (
                           <span className="absolute bottom-1 left-1 rounded bg-blue-500 px-1 text-[8px] font-bold text-white">
@@ -1495,7 +1511,7 @@ export default function Estoque() {
                     <p className="text-white font-semibold">Publicacao</p>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">
                     <Select value={shareChannel} onValueChange={(value: ShareChannel) => setShareChannel(value)}>
                       <SelectTrigger className="w-full h-9 bg-white/5 border-white/10 text-white">
                         <SelectValue />
@@ -1528,18 +1544,6 @@ export default function Estoque() {
                         <Share2 className="h-4 w-4 mr-2" />
                       )}
                       {getChannelActionLabel(shareChannel)}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() =>
-                        downloadPack(showDetail).then(() =>
-                          toast.success("Baixando 2 fotos principais: capa e destaque")
-                        )
-                      }
-                      className="w-full justify-center border-white/10 text-white/70 hover:text-white hover:bg-white/5"
-                    >
-                      <Download className="h-4 w-4 mr-2" /> Fotos
                     </Button>
                   </div>
                 </div>

@@ -25,6 +25,17 @@ const authMocks = vi.hoisted(() => ({
   permissions: {
     canManagePlatform: false,
     canManageTeam: true,
+    sellerPermissions: {
+      verCRM: true,
+      verEstoque: true,
+      adicionarVeiculo: true,
+      editarVeiculo: true,
+      excluirVeiculo: true,
+      verConsulta: true,
+      verPosVenda: true,
+      verCustos: true,
+      verCreditos: true,
+    },
   },
   isPlatformAdmin: false,
 }));
@@ -38,7 +49,9 @@ import AppLayout from "@/components/AppLayout";
 describe("AppLayout", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    authMocks.user.role = "owner";
     authMocks.tenant.nfeEnabled = true;
+    authMocks.permissions.canManageTeam = true;
   });
 
   it("shows team management for owners and hides the platform console", () => {
@@ -68,5 +81,28 @@ describe("AppLayout", () => {
     );
 
     expect(screen.queryByText("Notas fiscais")).not.toBeInTheDocument();
+  });
+
+  it("hides owner-only modules for sellers", () => {
+    authMocks.user.role = "seller";
+    authMocks.permissions.canManageTeam = false;
+
+    render(
+      <MemoryRouter initialEntries={["/dashboard"]}>
+        <AppLayout>
+          <div>Painel</div>
+        </AppLayout>
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByText("Vendas")).not.toBeInTheDocument();
+    expect(screen.queryByText("Consulta Veicular")).not.toBeInTheDocument();
+    expect(screen.queryByText("Custos")).not.toBeInTheDocument();
+    expect(screen.queryByText("Créditos")).not.toBeInTheDocument();
+    expect(screen.queryByText("Equipe")).not.toBeInTheDocument();
+    expect(screen.queryByText("Notas fiscais")).not.toBeInTheDocument();
+    expect(screen.getByText("CRM Leads")).toBeInTheDocument();
+    expect(screen.getByText("Estoque")).toBeInTheDocument();
+    expect(screen.getByText("Pós-Venda")).toBeInTheDocument();
   });
 });

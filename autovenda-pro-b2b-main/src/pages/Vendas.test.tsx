@@ -116,7 +116,7 @@ describe("Vendas", () => {
     render(<Vendas />);
 
     expect(screen.getByRole("heading", { name: "Vendas" })).toBeInTheDocument();
-    expect(screen.getAllByText("Corolla Cross XRE")).toHaveLength(2);
+    expect(screen.getAllByText("Corolla Cross XRE")).toHaveLength(1);
     expect(screen.getByText("NF-e autorizadas")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Ver nota" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Emitir nota" })).toBeInTheDocument();

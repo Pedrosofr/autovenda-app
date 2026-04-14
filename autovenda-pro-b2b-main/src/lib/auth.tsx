@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { AuthSession, UserRole } from "@/services/auth";
-import { loginRequest, logoutRequest, validateSession, DEFAULT_SELLER_PERMISSIONS } from "@/services/auth";
+import { loginRequest, logoutAllRequest, logoutRequest, validateSession, DEFAULT_SELLER_PERMISSIONS } from "@/services/auth";
 
 type AuthContextValue = {
   user: AuthSession["user"] | null;
@@ -10,6 +10,7 @@ type AuthContextValue = {
   isPlatformAdmin: boolean;
   login: (email: string, password: string) => Promise<AuthSession>;
   logout: () => Promise<void>;
+  logoutAll: () => Promise<void>;
   refreshSession: () => Promise<AuthSession | null>;
 };
 
@@ -55,12 +56,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       },
       async logout() {
         setSession(null);
-        const storageKeys = Object.keys(localStorage).filter((k) => k.startsWith("rozzcar_"));
-        storageKeys.forEach((k) => localStorage.removeItem(k));
+        try {
+          const storageKeys = Object.keys(localStorage).filter((k) => k.startsWith("rozzcar_"));
+          storageKeys.forEach((k) => localStorage.removeItem(k));
+        } catch {
+          // iOS private mode and restrictive browsers can throw when touching localStorage
+        }
         try {
           await logoutRequest();
         } catch {
           // o cookie de sessao ja sera limpo no backend quando possivel
+        }
+      },
+      async logoutAll() {
+        setSession(null);
+        try {
+          const storageKeys = Object.keys(localStorage).filter((k) => k.startsWith("rozzcar_"));
+          storageKeys.forEach((k) => localStorage.removeItem(k));
+        } catch {
+          // iOS private mode and restrictive browsers can throw when touching localStorage
+        }
+        try {
+          await logoutAllRequest();
+        } catch {
+          // fallback de resiliencia: o backend limpa todas as sessoes quando disponivel
         }
       },
       refreshSession,

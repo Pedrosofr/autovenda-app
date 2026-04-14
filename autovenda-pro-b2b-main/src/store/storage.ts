@@ -20,7 +20,11 @@ const pendingValues = new Map<string, string>();
 function flushKey(key: string) {
   const value = pendingValues.get(key);
   if (value === undefined) return;
-  localStorage.setItem(key, value);
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // Ignore quota/private-mode failures and keep app running.
+  }
   pendingValues.delete(key);
   const timeoutId = pendingWrites.get(key);
   if (timeoutId) {
@@ -40,7 +44,7 @@ function scheduleWrite(key: string, data: unknown) {
   pendingWrites.set(key, timeoutId);
 }
 
-if (typeof window !== "undefined") {
+if (typeof window !== "undefined" && typeof document !== "undefined") {
   const flushAll = () => {
     Array.from(pendingValues.keys()).forEach(flushKey);
   };

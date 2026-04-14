@@ -235,7 +235,7 @@ export default function PosVenda() {
                         <CardTitle className="text-base">{item.veiculo?.modelo ?? "Veiculo"}</CardTitle>
                         <p className="mt-0.5 text-xs text-muted-foreground">
                           Vendido em {new Date(item.venda.data).toLocaleDateString("pt-BR")}
-                          {item.vendedor ? ` · Vendedor: ${item.vendedor.nome}` : ""}
+                          {item.vendedor ? ` | Vendedor: ${item.vendedor.nome}` : ""}
                         </p>
                       </div>
                     </button>

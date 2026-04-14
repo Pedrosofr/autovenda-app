@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { v4 as uuidv4 } from "uuid";
 import type {
   Veiculo,
   Lead,
@@ -185,7 +186,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   }, [memoriaLoja, syncResource]);
 
   const addVeiculo = useCallback((v: Omit<Veiculo, "id" | "createdAt">) => {
-    const id = crypto.randomUUID();
+    const id = uuidv4();
     const createdAt = new Date().toISOString();
     setVeiculos((prev) => [{ ...v, id, createdAt } as Veiculo, ...prev]);
   }, []);
@@ -245,7 +246,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   }, [veiculos]);
 
   const addLead = useCallback((l: Omit<Lead, "id">) => {
-    const id = crypto.randomUUID();
+    const id = uuidv4();
     setLeads((prev) => [{ ...l, id } as Lead, ...prev]);
   }, []);
 
@@ -283,7 +284,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
 
   const addVenda = useCallback((veiculoId: string, vendedorId: string, valor: number) => {
     const data = new Date().toISOString().slice(0, 10);
-    const vendaId = crypto.randomUUID();
+    const vendaId = uuidv4();
     setVendas((prev) => [
       ...prev,
       { id: vendaId, veiculoId, vendedorId, valor, data },
@@ -307,12 +308,12 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const addConsulta = useCallback((c: Omit<ConsultaVeicular, "id">) => {
-    const id = crypto.randomUUID();
+    const id = uuidv4();
     setConsultas((prev) => [{ ...c, id } as ConsultaVeicular, ...prev]);
   }, []);
 
   const addTarefaPosVenda = useCallback((t: Omit<TarefaPosVenda, "id" | "criadoEm" | "status">) => {
-    const id = crypto.randomUUID();
+    const id = uuidv4();
     const criadoEm = new Date().toISOString();
     setTarefasPosVenda((prev) => [{ ...t, id, criadoEm, status: "pendente" } as TarefaPosVenda, ...prev]);
   }, []);
@@ -326,7 +327,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const addCusto = useCallback((c: Omit<CustoReparo, "id" | "criadoEm">) => {
-    const id = crypto.randomUUID();
+    const id = uuidv4();
     const criadoEm = new Date().toISOString();
     setCustos((prev) => [{ ...c, id, criadoEm } as CustoReparo, ...prev]);
   }, []);

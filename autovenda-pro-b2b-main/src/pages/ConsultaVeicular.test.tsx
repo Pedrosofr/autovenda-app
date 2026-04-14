@@ -5,25 +5,23 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 const mocks = vi.hoisted(() => ({
   addConsulta: vi.fn(),
-  fetchVeiculoByPlaca: vi.fn(),
-  fetchFipeByText: vi.fn(),
+  executeConsultation: vi.fn(),
   fetchFipeBrandSuggestions: vi.fn(),
   fetchFipeModelSuggestions: vi.fn(),
 }));
 
 vi.mock("@/store/appStore", () => ({
   useAppStore: () => ({
-    veiculos: [],
+    veiculos: [{ id: "veh-1", modelo: "Gol", ano: "2019", status: "disponivel" }],
     addConsulta: mocks.addConsulta,
   }),
 }));
 
-vi.mock("@/services/brasilapi", () => ({
-  fetchVeiculoByPlaca: mocks.fetchVeiculoByPlaca,
+vi.mock("@/services/consultas", () => ({
+  executeConsultation: mocks.executeConsultation,
 }));
 
 vi.mock("@/services/fipe", () => ({
-  fetchFipeByText: mocks.fetchFipeByText,
   fetchFipeBrandSuggestions: mocks.fetchFipeBrandSuggestions,
   fetchFipeModelSuggestions: mocks.fetchFipeModelSuggestions,
 }));
@@ -41,31 +39,59 @@ describe("ConsultaVeicular", () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
-    mocks.fetchVeiculoByPlaca.mockResolvedValue({
-      placa: "ABC-1D23",
-      placaConsultada: "ABC-1D23",
-      marca: "Volkswagen",
-      modelo: "Gol 1.0 Flex 12V 5p",
-      ano: "2019",
-      cor: "Branco",
-      situacao: "Regular",
-      municipio: "Sao Paulo",
-      uf: "SP",
-      source: "sinesp-api",
-    });
-
-    mocks.fetchFipeByText.mockResolvedValue({
-      valor: "R$ 40.142,00",
-      marca: "VW - VolksWagen",
-      modelo: "Gol 1.0 Flex 12V 5p",
-      anoModelo: 2019,
-      combustivel: "Flex",
-      codigoFipe: "005490-9",
-      mesReferencia: "marco de 2026",
-      tipoVeiculo: 1,
-      siglaCombustivel: "F",
-      dataConsulta: "domingo, 22 de marco de 2026 15:32",
-      source: "fipe-oficial",
+    mocks.executeConsultation.mockResolvedValue({
+      query: { plate: "ABC1D23" },
+      requestedModuleIds: ["completa"],
+      expandedModuleIds: ["placa", "fipe", "leilao", "multas", "debitos", "roubo_furto"],
+      totalPriceCents: 4990,
+      vehicle: {
+        placa: "ABC-1D23",
+        placaConsultada: "ABC-1D23",
+        marca: "Volkswagen",
+        modelo: "Gol 1.0 Flex 12V 5p",
+        ano: "2019",
+        cor: "Branco",
+        situacao: "Regular",
+      },
+      results: [
+        {
+          moduleId: "placa",
+          title: "Consulta por placa",
+          priceCents: 1290,
+          providerKey: "sinesp-api",
+          status: "completed",
+          executedAt: "2026-04-13T17:00:00.000Z",
+          data: {
+            placa: "ABC-1D23",
+            marca: "Volkswagen",
+            modelo: "Gol 1.0 Flex 12V 5p",
+            situacao: "Regular",
+          },
+        },
+        {
+          moduleId: "fipe",
+          title: "Tabela FIPE",
+          priceCents: 490,
+          providerKey: "fipe-oficial",
+          status: "completed",
+          executedAt: "2026-04-13T17:00:01.000Z",
+          data: {
+            valor: "R$ 40.142,00",
+            codigoFipe: "005490-9",
+            anoModelo: 2019,
+            combustivel: "Flex",
+          },
+        },
+        {
+          moduleId: "leilao",
+          title: "Historico de leilao",
+          priceCents: 1490,
+          providerKey: "pending-provider",
+          status: "pending_integration",
+          executedAt: "2026-04-13T17:00:02.000Z",
+          message: "Modulo preparado para integrar API externa sem retrabalhar a tela.",
+        },
+      ],
     });
 
     mocks.fetchFipeBrandSuggestions.mockResolvedValue([
@@ -79,84 +105,67 @@ describe("ConsultaVeicular", () => {
     ]);
   });
 
-  it("shows FIPE data after a successful plate lookup", async () => {
+  it("executes the modular consultation flow and renders module results", async () => {
     render(<ConsultaVeicular />);
 
     fireEvent.change(screen.getByPlaceholderText("ABC-1234 ou ABC-1D23"), {
       target: { value: "abc1d23" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Consultar" }));
+    fireEvent.click(screen.getByRole("button", { name: /Executar consulta/i }));
 
-    expect(await screen.findByText("FIPE")).toBeInTheDocument();
+    expect(await screen.findByText("Consulta por placa")).toBeInTheDocument();
     expect(await screen.findByText("R$ 40.142,00")).toBeInTheDocument();
-    expect(screen.getByText("005490-9")).toBeInTheDocument();
+    expect(screen.getByText("Pronto para API")).toBeInTheDocument();
 
     await waitFor(() => {
-      expect(mocks.fetchFipeByText).toHaveBeenCalledWith(
-        "Volkswagen",
-        "Gol 1.0 Flex 12V 5p",
-        "2019",
+      expect(mocks.executeConsultation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          plate: "ABC-1D23",
+          moduleIds: ["completa"],
+        }),
       );
     });
   });
 
-  it("allows manual FIPE lookup without depending on the plate provider", async () => {
-    render(<ConsultaVeicular />);
-
-    fireEvent.change(screen.getByPlaceholderText("Ex.: Volkswagen"), {
-      target: { value: "Volkswagen" },
-    });
-    fireEvent.change(screen.getByPlaceholderText("Ex.: Gol 1.0 Flex"), {
-      target: { value: "Gol 1.0 Flex 12V 5p" },
-    });
-    fireEvent.change(screen.getByPlaceholderText("Ex.: 2019"), {
-      target: { value: "2019" },
-    });
-
-    fireEvent.click(screen.getByRole("button", { name: "Consultar FIPE" }));
-
-    expect(await screen.findByText("R$ 40.142,00")).toBeInTheDocument();
-
-    await waitFor(() => {
-      expect(mocks.fetchFipeByText).toHaveBeenCalledWith(
-        "Volkswagen",
-        "Gol 1.0 Flex 12V 5p",
-        "2019",
-      );
-    });
-  });
-
-  it("shows clickable FIPE suggestions while typing brand and model", async () => {
+  it("allows FIPE base input suggestions while typing", async () => {
     render(<ConsultaVeicular />);
 
     fireEvent.change(screen.getByPlaceholderText("Ex.: Volkswagen"), {
       target: { value: "vol" },
     });
 
-    const brandSuggestion = await screen.findByRole("button", {
-      name: "Volkswagen",
-    });
+    const brandSuggestion = await screen.findByRole("button", { name: "Volkswagen" });
     fireEvent.click(brandSuggestion);
-
     expect(screen.getByPlaceholderText("Ex.: Volkswagen")).toHaveValue("Volkswagen");
 
     fireEvent.change(screen.getByPlaceholderText("Ex.: Gol 1.0 Flex"), {
       target: { value: "voy" },
     });
 
-    const modelSuggestion = await screen.findByRole("button", {
-      name: "Voyage 1.6 MSI Flex 16V 4p Aut.",
-    });
+    const modelSuggestion = await screen.findByRole("button", { name: "Voyage 1.6 MSI Flex 16V 4p Aut." });
     fireEvent.click(modelSuggestion);
+    expect(screen.getByPlaceholderText("Ex.: Gol 1.0 Flex")).toHaveValue("Voyage 1.6 MSI Flex 16V 4p Aut.");
+  });
 
-    expect(screen.getByPlaceholderText("Ex.: Gol 1.0 Flex")).toHaveValue(
-      "Voyage 1.6 MSI Flex 16V 4p Aut.",
-    );
-    await new Promise((resolve) => window.setTimeout(resolve, 260));
-    expect(
-      screen.queryByRole("button", {
-        name: "Voyage 1.6 MSI Flex 16V 4p Aut.",
-      }),
-    ).not.toBeInTheDocument();
+  it("saves a completed consultation into the store history", async () => {
+    render(<ConsultaVeicular />);
+
+    fireEvent.change(screen.getByPlaceholderText("ABC-1234 ou ABC-1D23"), {
+      target: { value: "abc1d23" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Executar consulta/i }));
+
+    expect(await screen.findByRole("button", { name: /Salvar consulta/i })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Salvar consulta/i }));
+
+    await waitFor(() => {
+      expect(mocks.addConsulta).toHaveBeenCalledWith(
+        expect.objectContaining({
+          placa: "ABC-1D23",
+          moduleIds: ["completa"],
+          totalPriceCents: 4990,
+        }),
+      );
+    });
   });
 });

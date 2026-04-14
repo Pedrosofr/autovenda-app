@@ -41,6 +41,7 @@ vi.mock("@/components/NFeEmitirDialog", () => ({
 
 vi.mock("@/services/gemini", () => ({
   analyzeVehicleWithGemini: vi.fn(),
+  generateVehicleDescriptions: vi.fn(),
   generateVehicleDescriptionsWithGemini: vi.fn(),
 }));
 

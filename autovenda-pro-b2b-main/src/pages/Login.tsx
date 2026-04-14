@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Navigate, useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, Navigate, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -7,14 +7,33 @@ import { ArrowLeft, Car, CheckCircle2, Eye, EyeOff, Loader2, Mail, Shield, Zap }
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
 import { getHomeRouteForRole } from "@/lib/navigation";
+import { APP_BRAND_NAME, APP_BRAND_TAGLINE } from "@/lib/brand";
+import { acceptInviteRequest, signupRequest } from "@/services/auth";
 
-type View = "login" | "forgot" | "reset";
+type View = "login" | "signup" | "forgot" | "reset" | "invite";
+
+function slugifyStoreName(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+}
 
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [signupStoreName, setSignupStoreName] = useState("");
+  const [signupSlug, setSignupSlug] = useState("");
+  const [signupOwnerName, setSignupOwnerName] = useState("");
+  const [signupOwnerEmail, setSignupOwnerEmail] = useState("");
+  const [signupOwnerPassword, setSignupOwnerPassword] = useState("");
+  const [signupSlugDirty, setSignupSlugDirty] = useState(false);
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [invitePassword, setInvitePassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [view, setView] = useState<View>("login");
@@ -28,6 +47,11 @@ const Login = () => {
   const requestedPath = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname;
   const redirectTo = requestedPath ?? getHomeRouteForRole(user?.role);
   const resetToken = searchParams.get("reset");
+  const inviteToken = searchParams.get("invite");
+  const inviteName = searchParams.get("name") ?? "";
+  const inviteEmail = searchParams.get("email") ?? "";
+  const inviteStore = searchParams.get("store") ?? "";
+  const inviteRole = searchParams.get("role") ?? "";
 
   useEffect(() => {
     const emailParam = searchParams.get("email");
@@ -37,6 +61,15 @@ const Login = () => {
   useEffect(() => {
     if (resetToken) setView("reset");
   }, [resetToken]);
+
+  useEffect(() => {
+    if (inviteToken) setView("invite");
+  }, [inviteToken]);
+
+  useEffect(() => {
+    if (signupSlugDirty) return;
+    setSignupSlug(slugifyStoreName(signupStoreName));
+  }, [signupSlugDirty, signupStoreName]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -101,12 +134,66 @@ const Login = () => {
     }
   };
 
+  const handleSignup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const normalizedSlug = slugifyStoreName(signupSlug || signupStoreName);
+    if (!normalizedSlug) {
+      toast.error("Informe um nome de loja valido para gerar o identificador.");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const session = await signupRequest({
+        storeName: signupStoreName,
+        slug: normalizedSlug,
+        ownerName: signupOwnerName,
+        ownerEmail: signupOwnerEmail,
+        ownerPassword: signupOwnerPassword,
+      });
+      toast.success("Loja criada com sucesso.");
+      navigate(getHomeRouteForRole(session.user.role), { replace: true });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Nao foi possivel criar a loja.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleAcceptInvite = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inviteToken) {
+      toast.error("Convite invalido.");
+      return;
+    }
+    if (invitePassword.length < 6) {
+      toast.error("A senha deve ter no minimo 6 caracteres.");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const session = await acceptInviteRequest({
+        token: inviteToken,
+        password: invitePassword,
+      });
+      toast.success("Convite aceito com sucesso.");
+      setSearchParams({});
+      navigate(getHomeRouteForRole(session.user.role), { replace: true });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Nao foi possivel aceitar o convite.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const goToLogin = () => {
     setView("login");
     setForgotSent(false);
     setResetSuccess(false);
     setNewPassword("");
     setConfirmPassword("");
+    setInvitePassword("");
     setSearchParams({});
   };
 
@@ -137,10 +224,10 @@ const Login = () => {
             <Car className="w-8 h-8 text-white" />
           </div>
           <h1 className="text-3xl font-extrabold text-white tracking-tight">
-            Rozz<span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-orange-400">car</span>
+            {APP_BRAND_NAME}
           </h1>
           <p className="text-white/40 text-sm mt-2 max-w-xs mx-auto leading-relaxed">
-            Gestao inteligente de estoque, leads e vendas automotivas
+            {APP_BRAND_TAGLINE}
           </p>
         </div>
 
@@ -203,7 +290,157 @@ const Login = () => {
                     Recuperar acesso
                   </button>
                 </p>
+                <p className="mt-3 text-center text-xs text-white/30">
+                  Quer entrar por conta propria?{" "}
+                  <button type="button" onClick={() => setView("signup")} className="text-amber-400/80 hover:text-amber-400 hover:underline font-medium transition-colors">
+                    Criar minha loja
+                  </button>
+                </p>
+                <p className="mt-3 text-center text-[11px] leading-5 text-white/25">
+                  Depois do cadastro, o owner entra no trial e monta a propria equipe por convite.
+                </p>
               </div>
+            </>
+          )}
+
+          {view === "signup" && (
+            <>
+              <button type="button" onClick={goToLogin} className="flex items-center gap-1.5 text-white/40 hover:text-white/70 text-xs font-medium mb-5 transition-colors">
+                <ArrowLeft className="h-3.5 w-3.5" /> Voltar ao login
+              </button>
+              <div className="text-center mb-5">
+                <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/20 mb-3">
+                  <Car className="w-5 h-5 text-amber-400" />
+                </div>
+                <h2 className="text-lg font-bold text-white">Criar loja</h2>
+                <p className="text-white/40 text-sm mt-1">Abra sua conta por conta propria, crie a revenda e entre direto no trial.</p>
+              </div>
+              <div className="mb-4 rounded-2xl border border-white/[0.08] bg-white/[0.03] p-4 text-sm text-white/70">
+                <div className="font-medium text-white">Fluxo recomendado</div>
+                <div className="mt-1 text-white/45">
+                  Voce cria a loja como owner agora e, depois de entrar, convida sua equipe para cada pessoa cadastrar a propria senha.
+                </div>
+              </div>
+              <form onSubmit={handleSignup} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="signup-store-name" className="text-white/60 text-xs font-semibold uppercase tracking-wider">Nome da loja</Label>
+                  <Input
+                    id="signup-store-name"
+                    type="text"
+                    placeholder="Ex.: Auto Prime Veiculos"
+                    value={signupStoreName}
+                    onChange={(e) => setSignupStoreName(e.target.value)}
+                    className="h-12 bg-white/[0.04] border-white/[0.08] text-white placeholder:text-white/20 rounded-xl focus:border-amber-500/50 focus:ring-amber-500/20 transition-all"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="signup-slug" className="text-white/60 text-xs font-semibold uppercase tracking-wider">Identificador da loja</Label>
+                  <Input
+                    id="signup-slug"
+                    type="text"
+                    placeholder="auto-prime-veiculos"
+                    value={signupSlug}
+                    onChange={(e) => {
+                      setSignupSlugDirty(true);
+                      setSignupSlug(slugifyStoreName(e.target.value));
+                    }}
+                    className="h-12 bg-white/[0.04] border-white/[0.08] text-white placeholder:text-white/20 rounded-xl focus:border-amber-500/50 focus:ring-amber-500/20 transition-all"
+                    required
+                  />
+                  <p className="text-[11px] text-white/30">Esse identificador precisa ser unico e sera usado internamente.</p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="signup-owner-name" className="text-white/60 text-xs font-semibold uppercase tracking-wider">Seu nome</Label>
+                  <Input
+                    id="signup-owner-name"
+                    type="text"
+                    placeholder="Nome do responsavel"
+                    value={signupOwnerName}
+                    onChange={(e) => setSignupOwnerName(e.target.value)}
+                    className="h-12 bg-white/[0.04] border-white/[0.08] text-white placeholder:text-white/20 rounded-xl focus:border-amber-500/50 focus:ring-amber-500/20 transition-all"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="signup-owner-email" className="text-white/60 text-xs font-semibold uppercase tracking-wider">E-mail</Label>
+                  <Input
+                    id="signup-owner-email"
+                    type="email"
+                    placeholder="voce@loja.com"
+                    value={signupOwnerEmail}
+                    onChange={(e) => setSignupOwnerEmail(e.target.value)}
+                    className="h-12 bg-white/[0.04] border-white/[0.08] text-white placeholder:text-white/20 rounded-xl focus:border-amber-500/50 focus:ring-amber-500/20 transition-all"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="signup-owner-password" className="text-white/60 text-xs font-semibold uppercase tracking-wider">Senha</Label>
+                  <Input
+                    id="signup-owner-password"
+                    type="password"
+                    placeholder="Minimo 6 caracteres"
+                    value={signupOwnerPassword}
+                    onChange={(e) => setSignupOwnerPassword(e.target.value)}
+                    className="h-12 bg-white/[0.04] border-white/[0.08] text-white placeholder:text-white/20 rounded-xl focus:border-amber-500/50 focus:ring-amber-500/20 transition-all"
+                    required
+                    minLength={6}
+                  />
+                </div>
+                <Button
+                  type="submit"
+                  disabled={submitting}
+                  className="w-full h-12 font-bold text-sm rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white shadow-lg shadow-amber-500/25 transition-all duration-300 hover:shadow-amber-500/40 hover:scale-[1.01] active:scale-[0.99]"
+                >
+                  {submitting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                  Criar loja e entrar
+                </Button>
+              </form>
+            </>
+          )}
+
+          {view === "invite" && (
+            <>
+              <button type="button" onClick={goToLogin} className="flex items-center gap-1.5 text-white/40 hover:text-white/70 text-xs font-medium mb-5 transition-colors">
+                <ArrowLeft className="h-3.5 w-3.5" /> Voltar ao login
+              </button>
+              <div className="text-center mb-5">
+                <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/20 mb-3">
+                  <Shield className="w-5 h-5 text-amber-400" />
+                </div>
+                <h2 className="text-lg font-bold text-white">Aceitar convite</h2>
+                <p className="text-white/40 text-sm mt-1">
+                  {inviteStore ? `Entre em ${inviteStore}` : "Crie sua senha para acessar a loja."}
+                </p>
+              </div>
+              <div className="mb-4 rounded-2xl border border-white/[0.08] bg-white/[0.03] p-4 text-sm text-white/70">
+                <div><span className="text-white/40">Nome:</span> {inviteName || "Convite da loja"}</div>
+                <div className="mt-1"><span className="text-white/40">E-mail:</span> {inviteEmail || "Seu acesso"}</div>
+                <div className="mt-1"><span className="text-white/40">Perfil:</span> {inviteRole === "owner" ? "Acesso total" : "Vendedor"}</div>
+              </div>
+              <form onSubmit={handleAcceptInvite} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="invite-password" className="text-white/60 text-xs font-semibold uppercase tracking-wider">Crie sua senha</Label>
+                  <Input
+                    id="invite-password"
+                    type="password"
+                    placeholder="Minimo 6 caracteres"
+                    value={invitePassword}
+                    onChange={(e) => setInvitePassword(e.target.value)}
+                    className="h-12 bg-white/[0.04] border-white/[0.08] text-white placeholder:text-white/20 rounded-xl focus:border-amber-500/50 focus:ring-amber-500/20 transition-all"
+                    required
+                    minLength={6}
+                  />
+                </div>
+                <Button
+                  type="submit"
+                  disabled={submitting}
+                  className="w-full h-12 font-bold text-sm rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white shadow-lg shadow-amber-500/25 transition-all duration-300 hover:shadow-amber-500/40 hover:scale-[1.01] active:scale-[0.99]"
+                >
+                  {submitting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                  Criar senha e entrar
+                </Button>
+              </form>
             </>
           )}
 
@@ -362,6 +599,13 @@ const Login = () => {
             </div>
           </div>
         )}
+        <div className="mt-4 text-center text-xs text-white/40">
+          Ao continuar, voce concorda com a nossa{" "}
+          <Link to="/privacidade" className="text-blue-300 hover:text-blue-200 underline underline-offset-2">
+            Politica de Privacidade
+          </Link>
+          .
+        </div>
       </div>
     </div>
   );

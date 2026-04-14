@@ -81,6 +81,29 @@ export async function loginRequest(email: string, password: string) {
   });
 }
 
+export async function signupRequest(payload: {
+  storeName: string;
+  slug: string;
+  ownerName: string;
+  ownerEmail: string;
+  ownerPassword: string;
+}) {
+  return request<AuthSession>("/api/auth/signup", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function acceptInviteRequest(payload: {
+  token: string;
+  password: string;
+}) {
+  return request<AuthSession>("/api/auth/accept-invite", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function validateSession() {
   return request<AuthSession>("/api/auth/session", {
     method: "GET",
@@ -89,6 +112,12 @@ export async function validateSession() {
 
 export async function logoutRequest() {
   return request<{ success: true }>("/api/auth/logout", {
+    method: "POST",
+  });
+}
+
+export async function logoutAllRequest() {
+  return request<{ success: true }>("/api/auth/logout-all", {
     method: "POST",
   });
 }

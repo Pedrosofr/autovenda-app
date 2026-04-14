@@ -9,6 +9,17 @@ export interface TeamMember {
   criado_em: string;
 }
 
+export interface TeamInvite {
+  id: number;
+  nome: string;
+  email: string;
+  papel: "owner" | "seller";
+  meta_mensal: number | null;
+  status: "pending" | "expired" | "accepted" | "revoked";
+  expires_em: string;
+  criado_em: string;
+}
+
 async function request<T>(path: string, init?: RequestInit) {
   const response = await fetch(path, {
     ...init,
@@ -28,7 +39,7 @@ async function request<T>(path: string, init?: RequestInit) {
 }
 
 export async function fetchTeamMembers() {
-  return request<{ members: TeamMember[] }>("/api/tenant/team", {
+  return request<{ members: TeamMember[]; invites: TeamInvite[] }>("/api/tenant/team", {
     method: "GET",
   });
 }
@@ -43,6 +54,24 @@ export async function createSeller(payload: {
   return request<{ success: true; members: TeamMember[] }>("/api/tenant/team", {
     method: "POST",
     body: JSON.stringify(payload),
+  });
+}
+
+export async function inviteTeamMember(payload: {
+  name: string;
+  email: string;
+  role?: "owner" | "seller";
+  salesGoalMonthly?: number | null;
+}) {
+  return request<{ success: true; inviteUrl: string; members: TeamMember[]; invites: TeamInvite[] }>("/api/tenant/invites", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function revokeTeamInvite(inviteId: number) {
+  return request<{ success: true; members: TeamMember[]; invites: TeamInvite[] }>(`/api/tenant/invites/${inviteId}`, {
+    method: "DELETE",
   });
 }
 
