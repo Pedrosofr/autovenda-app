@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { handleBackendRequest } from "../server/backend";
-import { createRequestId } from "../server/observability";
+import { handleBackendRequest } from "./backend";
+import { createRequestId } from "./observability";
 
 async function readBody(req: IncomingMessage) {
   return new Promise<unknown>((resolve, reject) => {
@@ -27,11 +27,10 @@ async function readBody(req: IncomingMessage) {
 export async function runBackendHandler(
   req: IncomingMessage,
   res: ServerResponse,
-  fallbackPath: string,
 ) {
   const requestId = createRequestId();
   const requestUrl = req.url ? new URL(req.url, "http://localhost") : null;
-  const path = requestUrl ? `${requestUrl.pathname}${requestUrl.search}` : fallbackPath;
+  const path = requestUrl ? `${requestUrl.pathname}${requestUrl.search}` : "/api";
 
   const response = await handleBackendRequest({
     method: req.method ?? "GET",
