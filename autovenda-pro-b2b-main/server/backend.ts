@@ -2465,6 +2465,10 @@ export async function handleBackendRequest(request: RequestShape): Promise<Respo
       return withRequestId(await handleAcceptInvite(request, headers));
     }
 
+    if (request.path === "/api/auth/health") {
+      return json(200, { status: "ok" });
+    }
+
     if (request.path === "/api/platform/stores") {
       return withRequestId(await handlePlatformStores(request, headers));
     }
